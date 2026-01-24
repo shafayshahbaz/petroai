@@ -9,7 +9,13 @@ import DailyEntry from "./pages/DailyEntry";
 import SalesReport from "./pages/SalesReport";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
