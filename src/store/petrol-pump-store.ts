@@ -10,6 +10,9 @@ import {
   CreditItem,
   PurchaseInvoice,
   CompanySettings,
+  Tank,
+  Machine,
+  MachineNozzle,
   TankStock,
   DEFAULT_FUEL_RATES,
   DEFAULT_NOZZLE_CONFIG,
@@ -21,7 +24,14 @@ import {
 interface PetrolPumpState {
   // Company & Settings
   companySettings: CompanySettings;
+  
+  // Dynamic Infrastructure
+  tanks: Tank[];
+  machines: Machine[];
+  
+  // Legacy tank stocks (for backwards compatibility)
   tankStocks: TankStock[];
+  
   initialNozzleReadings: Record<string, number>;
   initialCashBalance: number;
   
@@ -32,10 +42,29 @@ interface PetrolPumpState {
   
   // Company Settings Actions
   updateCompanySettings: (settings: Partial<CompanySettings>) => void;
-  updateTankStock: (fuelType: FuelType, stock: number) => void;
+  completeInitialSetup: () => void;
+  
+  // Dynamic Tank Management
+  addTank: (tank: Omit<Tank, 'id'>) => void;
+  updateTank: (id: string, data: Partial<Tank>) => void;
+  deleteTank: (id: string) => void;
+  updateTankStock: (tankIdOrFuelType: string | FuelType, stock: number) => void;
+  
+  // Dynamic Machine Management
+  addMachine: (name: string) => void;
+  updateMachine: (id: string, data: Partial<Machine>) => void;
+  deleteMachine: (id: string) => void;
+  
+  // Dynamic Nozzle Management
+  addNozzleToMachine: (machineId: string, nozzle: Omit<MachineNozzle, 'id'>) => void;
+  updateMachineNozzle: (machineId: string, nozzleId: string, data: Partial<MachineNozzle>) => void;
+  deleteNozzleFromMachine: (machineId: string, nozzleId: string) => void;
+  
+  // Nozzle-Tank Mapping
+  mapNozzleToTank: (machineId: string, nozzleId: string, tankId: string) => void;
+  
   updateInitialNozzleReading: (nozzleId: string, reading: number) => void;
   updateInitialCashBalance: (amount: number) => void;
-  completeInitialSetup: () => void;
   
   // Entry Actions
   createNewEntry: (date: string, shiftName: string, isMultiDay?: boolean, endDate?: string) => void;
@@ -70,16 +99,45 @@ interface PetrolPumpState {
   
   // Stock calculations
   calculateCurrentStock: (fuelType: FuelType) => number;
+  getTankStock: (tankId: string) => number;
+  
+  // Helper to get all nozzles from machines
+  getAllNozzles: () => Array<MachineNozzle & { machineId: string; machineName: string }>;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
+// Create nozzles from dynamic machines configuration
+const createNozzlesFromMachines = (machines: Machine[], lastReadings: Record<string, number>): Nozzle[] => {
+  const nozzles: Nozzle[] = [];
+  
+  machines.forEach((machine) => {
+    machine.nozzles.forEach((nozzle, index) => {
+      const id = nozzle.id;
+      nozzles.push({
+        id,
+        machineId: machine.id,
+        nozzleNumber: index + 1,
+        fuelType: nozzle.fuelType,
+        label: nozzle.label,
+        tankId: nozzle.tankId,
+        openingReading: lastReadings[id] || 0,
+        closingReading: lastReadings[id] || 0,
+        testing: 0,
+      });
+    });
+  });
+  
+  return nozzles;
+};
+
+// Create nozzles from default config (for backwards compatibility)
 const createDefaultNozzles = (lastReadings: Record<string, number>): Nozzle[] => {
   return DEFAULT_NOZZLE_CONFIG.map((config, index) => {
     const id = `nozzle-${config.fuelType}-${config.label}`;
     return {
       id,
-      machineId: Math.floor(index / 2) + 1,
+      machineId: `machine-${Math.floor(index / 2) + 1}`,
       nozzleNumber: (index % 2) + 1,
       fuelType: config.fuelType,
       label: config.label,
@@ -104,10 +162,57 @@ const defaultTankStocks: TankStock[] = [
   { fuelType: 'POWER', currentStock: 0, capacity: DEFAULT_TANK_CAPACITIES.POWER },
 ];
 
+// Default tanks
+const defaultTanks: Tank[] = [
+  { id: 'tank-ms-1', name: 'MS Tank 1', fuelType: 'MS', capacity: 20000, currentStock: 0, lowStockThreshold: 1000 },
+  { id: 'tank-hsd-1', name: 'HSD Tank 1', fuelType: 'HSD', capacity: 20000, currentStock: 0, lowStockThreshold: 1000 },
+  { id: 'tank-power-1', name: 'Power Tank 1', fuelType: 'POWER', capacity: 10000, currentStock: 0, lowStockThreshold: 500 },
+];
+
+// Default machines with nozzles
+const defaultMachines: Machine[] = [
+  {
+    id: 'machine-1',
+    name: 'Machine 1',
+    nozzles: [
+      { id: 'nozzle-MS-N1', label: 'N1', fuelType: 'MS', tankId: 'tank-ms-1' },
+      { id: 'nozzle-MS-N2', label: 'N2', fuelType: 'MS', tankId: 'tank-ms-1' },
+    ],
+  },
+  {
+    id: 'machine-2',
+    name: 'Machine 2',
+    nozzles: [
+      { id: 'nozzle-MS-A1', label: 'A1', fuelType: 'MS', tankId: 'tank-ms-1' },
+      { id: 'nozzle-MS-A2', label: 'A2', fuelType: 'MS', tankId: 'tank-ms-1' },
+    ],
+  },
+  {
+    id: 'machine-3',
+    name: 'Machine 3',
+    nozzles: [
+      { id: 'nozzle-POWER-A1', label: 'A1', fuelType: 'POWER', tankId: 'tank-power-1' },
+      { id: 'nozzle-POWER-B1', label: 'B1', fuelType: 'POWER', tankId: 'tank-power-1' },
+      { id: 'nozzle-POWER-A2', label: 'A2', fuelType: 'POWER', tankId: 'tank-power-1' },
+    ],
+  },
+  {
+    id: 'machine-4',
+    name: 'Machine 4',
+    nozzles: [
+      { id: 'nozzle-HSD-A2', label: 'A2', fuelType: 'HSD', tankId: 'tank-hsd-1' },
+      { id: 'nozzle-HSD-B2', label: 'B2', fuelType: 'HSD', tankId: 'tank-hsd-1' },
+      { id: 'nozzle-HSD-A1', label: 'A1', fuelType: 'HSD', tankId: 'tank-hsd-1' },
+    ],
+  },
+];
+
 export const usePetrolPumpStore = create<PetrolPumpState>()(
   persist(
     (set, get) => ({
       companySettings: defaultCompanySettings,
+      tanks: defaultTanks,
+      machines: defaultMachines,
       tankStocks: defaultTankStocks,
       initialNozzleReadings: {},
       initialCashBalance: 0,
@@ -121,10 +226,135 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         }));
       },
 
-      updateTankStock: (fuelType, stock) => {
+      completeInitialSetup: () => {
         set((state) => ({
-          tankStocks: state.tankStocks.map((t) =>
-            t.fuelType === fuelType ? { ...t, currentStock: stock } : t
+          companySettings: { ...state.companySettings, isInitialized: true },
+        }));
+      },
+
+      // Tank Management
+      addTank: (tankData) => {
+        const newTank: Tank = {
+          ...tankData,
+          id: generateId(),
+        };
+        set((state) => ({
+          tanks: [...state.tanks, newTank],
+        }));
+      },
+
+      updateTank: (id, data) => {
+        set((state) => ({
+          tanks: state.tanks.map((t) => (t.id === id ? { ...t, ...data } : t)),
+        }));
+      },
+
+      deleteTank: (id) => {
+        set((state) => ({
+          tanks: state.tanks.filter((t) => t.id !== id),
+        }));
+      },
+
+      updateTankStock: (tankIdOrFuelType, stock) => {
+        set((state) => {
+          // Check if it's a tank ID or fuel type
+          const isTankId = state.tanks.some((t) => t.id === tankIdOrFuelType);
+          
+          if (isTankId) {
+            return {
+              tanks: state.tanks.map((t) =>
+                t.id === tankIdOrFuelType ? { ...t, currentStock: stock } : t
+              ),
+            };
+          } else {
+            // Legacy: update by fuel type
+            return {
+              tankStocks: state.tankStocks.map((t) =>
+                t.fuelType === tankIdOrFuelType ? { ...t, currentStock: stock } : t
+              ),
+              tanks: state.tanks.map((t) =>
+                t.fuelType === tankIdOrFuelType ? { ...t, currentStock: stock } : t
+              ),
+            };
+          }
+        });
+      },
+
+      // Machine Management
+      addMachine: (name) => {
+        const newMachine: Machine = {
+          id: generateId(),
+          name,
+          nozzles: [],
+        };
+        set((state) => ({
+          machines: [...state.machines, newMachine],
+        }));
+      },
+
+      updateMachine: (id, data) => {
+        set((state) => ({
+          machines: state.machines.map((m) => (m.id === id ? { ...m, ...data } : m)),
+        }));
+      },
+
+      deleteMachine: (id) => {
+        set((state) => ({
+          machines: state.machines.filter((m) => m.id !== id),
+        }));
+      },
+
+      // Nozzle Management
+      addNozzleToMachine: (machineId, nozzleData) => {
+        const newNozzle: MachineNozzle = {
+          ...nozzleData,
+          id: generateId(),
+        };
+        set((state) => ({
+          machines: state.machines.map((m) =>
+            m.id === machineId
+              ? { ...m, nozzles: [...m.nozzles, newNozzle] }
+              : m
+          ),
+        }));
+      },
+
+      updateMachineNozzle: (machineId, nozzleId, data) => {
+        set((state) => ({
+          machines: state.machines.map((m) =>
+            m.id === machineId
+              ? {
+                  ...m,
+                  nozzles: m.nozzles.map((n) =>
+                    n.id === nozzleId ? { ...n, ...data } : n
+                  ),
+                }
+              : m
+          ),
+        }));
+      },
+
+      deleteNozzleFromMachine: (machineId, nozzleId) => {
+        set((state) => ({
+          machines: state.machines.map((m) =>
+            m.id === machineId
+              ? { ...m, nozzles: m.nozzles.filter((n) => n.id !== nozzleId) }
+              : m
+          ),
+        }));
+      },
+
+      mapNozzleToTank: (machineId, nozzleId, tankId) => {
+        set((state) => ({
+          machines: state.machines.map((m) =>
+            m.id === machineId
+              ? {
+                  ...m,
+                  nozzles: m.nozzles.map((n) =>
+                    n.id === nozzleId ? { ...n, tankId } : n
+                  ),
+                }
+              : m
           ),
         }));
       },
@@ -142,21 +372,19 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         set({ initialCashBalance: amount });
       },
 
-      completeInitialSetup: () => {
-        set((state) => ({
-          companySettings: { ...state.companySettings, isInitialized: true },
-        }));
-      },
-
       createNewEntry: (date, shiftName, isMultiDay = false, endDate) => {
         const beforeDate = isMultiDay && endDate ? date : undefined;
         const lastReadings = get().getLastClosingReadings(beforeDate);
         const lastCashInHand = get().getLastCashInHand(beforeDate);
         
-        // If no entries exist, use initial readings
-        const { entries, initialNozzleReadings, initialCashBalance } = get();
+        const { entries, initialNozzleReadings, initialCashBalance, machines } = get();
         const readingsToUse = entries.length === 0 ? initialNozzleReadings : lastReadings;
         const cashToUse = entries.length === 0 ? initialCashBalance : lastCashInHand;
+        
+        // Create nozzles from machines configuration
+        const nozzles = machines.length > 0 
+          ? createNozzlesFromMachines(machines, readingsToUse)
+          : createDefaultNozzles(readingsToUse);
         
         set({
           currentEntry: {
@@ -166,7 +394,7 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
             isMultiDay,
             shiftName,
             fuelRates: { ...DEFAULT_FUEL_RATES },
-            nozzles: createDefaultNozzles(readingsToUse),
+            nozzles,
             lubeItems: [],
             expenses: [],
             incomes: [],
@@ -387,7 +615,7 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
       },
 
       saveEntry: () => {
-        const { currentEntry, entries, tankStocks } = get();
+        const { currentEntry, entries, tanks } = get();
         if (!currentEntry?.id) return;
 
         const completeEntry: DailyEntry = {
@@ -410,12 +638,21 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
           updatedAt: new Date().toISOString(),
         };
 
-        // Calculate fuel sales for stock update
-        const totals = calculateTotals(completeEntry);
+        // Calculate fuel sales for stock update (tank-aware)
+        const salesByTank: Record<string, number> = {};
         
-        // Update tank stocks (deduct sales)
-        const updatedTankStocks = tankStocks.map((tank) => {
-          const soldLiters = totals.fuelSales[tank.fuelType].liters;
+        completeEntry.nozzles.forEach((nozzle) => {
+          const grossLiters = Math.max(0, nozzle.closingReading - nozzle.openingReading);
+          const netLiters = Math.max(0, grossLiters - (nozzle.testing || 0));
+          
+          if (nozzle.tankId) {
+            salesByTank[nozzle.tankId] = (salesByTank[nozzle.tankId] || 0) + netLiters;
+          }
+        });
+        
+        // Update tank stocks (deduct sales per tank)
+        const updatedTanks = tanks.map((tank) => {
+          const soldLiters = salesByTank[tank.id] || 0;
           return {
             ...tank,
             currentStock: Math.max(0, tank.currentStock - soldLiters),
@@ -427,13 +664,13 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         if (existingIndex >= 0) {
           set({
             entries: entries.map((e, i) => (i === existingIndex ? completeEntry : e)),
-            tankStocks: updatedTankStocks,
+            tanks: updatedTanks,
             currentEntry: null,
           });
         } else {
           set({
             entries: [...entries, completeEntry],
-            tankStocks: updatedTankStocks,
+            tanks: updatedTanks,
             currentEntry: null,
           });
         }
@@ -523,19 +760,38 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
 
         // Update tank stock
         set((state) => {
-          const updatedTankStocks = state.tankStocks.map((tank) => {
-            if (tank.fuelType === purchaseData.fuelType) {
-              return {
-                ...tank,
-                currentStock: tank.currentStock + (purchaseData.quantityKL * 1000),
-              };
+          let updatedTanks = state.tanks;
+          
+          if (purchaseData.tankId) {
+            // Update specific tank
+            updatedTanks = state.tanks.map((tank) => {
+              if (tank.id === purchaseData.tankId) {
+                return {
+                  ...tank,
+                  currentStock: tank.currentStock + (purchaseData.quantityKL * 1000),
+                };
+              }
+              return tank;
+            });
+          } else {
+            // Legacy: update by fuel type (first tank of that type)
+            const targetTank = state.tanks.find((t) => t.fuelType === purchaseData.fuelType);
+            if (targetTank) {
+              updatedTanks = state.tanks.map((tank) => {
+                if (tank.id === targetTank.id) {
+                  return {
+                    ...tank,
+                    currentStock: tank.currentStock + (purchaseData.quantityKL * 1000),
+                  };
+                }
+                return tank;
+              });
             }
-            return tank;
-          });
+          }
 
           return {
             purchases: [...state.purchases, newPurchase],
-            tankStocks: updatedTankStocks,
+            tanks: updatedTanks,
           };
         });
       },
@@ -555,9 +811,34 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
       },
 
       calculateCurrentStock: (fuelType) => {
-        const { tankStocks } = get();
-        const tank = tankStocks.find((t) => t.fuelType === fuelType);
+        const { tanks } = get();
+        // Sum stock from all tanks of this fuel type
+        return tanks
+          .filter((t) => t.fuelType === fuelType)
+          .reduce((sum, t) => sum + t.currentStock, 0);
+      },
+
+      getTankStock: (tankId) => {
+        const { tanks } = get();
+        const tank = tanks.find((t) => t.id === tankId);
         return tank?.currentStock || 0;
+      },
+
+      getAllNozzles: () => {
+        const { machines } = get();
+        const allNozzles: Array<MachineNozzle & { machineId: string; machineName: string }> = [];
+        
+        machines.forEach((machine) => {
+          machine.nozzles.forEach((nozzle) => {
+            allNozzles.push({
+              ...nozzle,
+              machineId: machine.id,
+              machineName: machine.name,
+            });
+          });
+        });
+        
+        return allNozzles;
       },
     }),
     {

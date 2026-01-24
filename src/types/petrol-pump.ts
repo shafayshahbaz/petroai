@@ -7,14 +7,33 @@ export interface CompanySettings {
   address: string;
   gstNumber: string;
   phone: string;
+  logo?: string;
   isInitialized: boolean;
 }
 
-// Tank/Stock configuration
-export interface TankStock {
+// Dynamic Tank configuration
+export interface Tank {
+  id: string;
+  name: string;
   fuelType: FuelType;
+  capacity: number; // in liters
   currentStock: number; // in liters
-  capacity: number; // tank capacity
+  lowStockThreshold: number; // Alert when below this
+}
+
+// Dynamic Machine configuration
+export interface Machine {
+  id: string;
+  name: string;
+  nozzles: MachineNozzle[];
+}
+
+// Dynamic Nozzle configuration
+export interface MachineNozzle {
+  id: string;
+  label: string;
+  fuelType: FuelType;
+  tankId: string; // Which tank this nozzle draws from
 }
 
 // Initial nozzle readings for Day 1 setup
@@ -25,13 +44,14 @@ export interface InitialNozzleReading {
   reading: number;
 }
 
-// Nozzle configuration
+// Nozzle reading entry (for daily entries)
 export interface Nozzle {
   id: string;
-  machineId: number;
+  machineId: string;
   nozzleNumber: number;
   fuelType: FuelType;
   label: string;
+  tankId?: string; // Which tank this nozzle draws from
   openingReading: number;
   closingReading: number;
   testing: number; // testing deduction per nozzle
@@ -80,6 +100,7 @@ export interface PurchaseInvoice {
   date: string;
   supplier: string;
   fuelType: FuelType;
+  tankId?: string; // Which tank to add stock to
   quantityKL: number; // in Kiloliters
   basicRate: number;
   vatPercentage: number;
@@ -93,6 +114,13 @@ export interface PurchaseInvoice {
   densityDifference: number;
   qualityStatus: 'accepted' | 'warning' | 'pending';
   createdAt: string;
+}
+
+// Tank/Stock configuration (legacy - for backwards compatibility)
+export interface TankStock {
+  fuelType: FuelType;
+  currentStock: number;
+  capacity: number;
 }
 
 // Daily Entry - Updated
@@ -144,7 +172,7 @@ export interface DailyTotals {
   closingCash: number;
 }
 
-// Nozzle configuration by fuel type (based on the reference image)
+// Nozzle configuration by fuel type (based on the reference image) - DEFAULT for backwards compatibility
 export const DEFAULT_NOZZLE_CONFIG: { fuelType: FuelType; label: string }[] = [
   // MS - 4 nozzles
   { fuelType: 'MS', label: 'N1' },
@@ -173,4 +201,11 @@ export const DEFAULT_TANK_CAPACITIES: Record<FuelType, number> = {
   MS: 20000,
   HSD: 20000,
   POWER: 10000,
+};
+
+// Fuel type display info
+export const FUEL_TYPE_INFO: Record<FuelType, { name: string; color: string }> = {
+  MS: { name: 'MS (Petrol)', color: 'bg-amber-500' },
+  HSD: { name: 'HSD (Diesel)', color: 'bg-green-600' },
+  POWER: { name: 'POWER (Premium)', color: 'bg-blue-600' },
 };
