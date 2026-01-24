@@ -1,5 +1,5 @@
 import { format, parseISO } from 'date-fns';
-import { DailyEntry, DEFAULT_NOZZLE_CONFIG, FuelType } from '@/types/petrol-pump';
+import { DailyEntry, FuelType } from '@/types/petrol-pump';
 import { calculateTotals } from '@/store/petrol-pump-store';
 
 interface PrintableReportProps {
@@ -11,12 +11,6 @@ function formatNumber(num: number, decimals: number = 2): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(num);
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    maximumFractionDigits: 2,
-  }).format(amount);
 }
 
 export function PrintableReport({ entry }: PrintableReportProps) {
@@ -41,6 +35,9 @@ export function PrintableReport({ entry }: PrintableReportProps) {
       <div className="text-center mb-6">
         <h1 className="text-xl font-bold">KGN FUEL CENTRE 2025-26</h1>
         <p className="text-base">{format(parseISO(entry.date), 'dd-MM-yyyy')}</p>
+        {entry.isMultiDay && entry.endDate && (
+          <p className="text-sm">to {format(parseISO(entry.endDate), 'dd-MM-yyyy')}</p>
+        )}
         {entry.shiftName && <p className="text-sm">Shift: {entry.shiftName}</p>}
       </div>
 
@@ -48,9 +45,6 @@ export function PrintableReport({ entry }: PrintableReportProps) {
       {(['MS', 'POWER', 'HSD'] as FuelType[]).map((fuelType) => {
         const nozzles = groupedNozzles[fuelType];
         const labels = fuelLabels[fuelType];
-        const totalLiters = nozzles.reduce((sum, n) => sum + Math.max(0, n.closingReading - n.openingReading), 0);
-        const testing = entry.testingDeduction?.[fuelType] || 0;
-        const netLiters = totalLiters - testing;
 
         return (
           <div key={fuelType} className="mb-6">
@@ -79,99 +73,122 @@ export function PrintableReport({ entry }: PrintableReportProps) {
                     <td key={idx} className="text-right py-1 px-2">{formatNumber(nozzle.closingReading, 3)}</td>
                   ))}
                 </tr>
-                <tr className="font-bold border-t border-black">
-                  <td className="py-1 pr-4">SALES</td>
+                <tr>
+                  <td className="py-1 pr-4">Testing</td>
                   {nozzles.map((nozzle, idx) => (
-                    <td key={idx} className="text-right py-1 px-2">
-                      {formatNumber(Math.max(0, nozzle.closingReading - nozzle.openingReading), 3)}
-                    </td>
+                    <td key={idx} className="text-right py-1 px-2">{formatNumber(nozzle.testing || 0, 2)}</td>
                   ))}
+                </tr>
+                <tr className="font-bold border-t border-black">
+                  <td className="py-1 pr-4">NET SALES</td>
+                  {nozzles.map((nozzle, idx) => {
+                    const gross = Math.max(0, nozzle.closingReading - nozzle.openingReading);
+                    const net = Math.max(0, gross - (nozzle.testing || 0));
+                    return (
+                      <td key={idx} className="text-right py-1 px-2">
+                        {formatNumber(net, 3)}
+                      </td>
+                    );
+                  })}
                 </tr>
               </tbody>
             </table>
             <div className="flex justify-end gap-4 mt-2 text-sm">
-              <span>TOTAL SALES = {formatNumber(totalLiters, 2)}</span>
-              {testing > 0 && <span>-{formatNumber(testing, 2)} Testing=</span>}
-              <span className="font-bold">{formatNumber(netLiters, 2)}</span>
+              <span className="font-bold">
+                TOTAL: {formatNumber(totals.fuelSales[fuelType].liters, 2)} L = ₹{formatNumber(totals.fuelSales[fuelType].amount, 2)}
+              </span>
             </div>
           </div>
         );
       })}
 
-      {/* Two Column Summary */}
-      <div className="flex gap-8 mt-8 text-xs">
-        {/* Left Column - Income */}
+      {/* Two Column Summary - T Format */}
+      <div className="flex gap-8 mt-8 text-xs border-t-2 border-black pt-4">
+        {/* Left Column - Inflows */}
         <div className="flex-1">
+          <div className="font-bold text-center mb-2 border-b border-black pb-1">INFLOWS</div>
           <div className="space-y-1">
             <div className="flex justify-between">
-              <span>{formatNumber(entry.openingBalance || 0, 0)}</span>
               <span>Opening Balance</span>
+              <span>{formatNumber(entry.openingBalance || 0, 0)}</span>
             </div>
             <div className="flex justify-between">
+              <span>MS Sales ({formatNumber(totals.fuelSales.MS.liters, 2)} L × ₹{entry.fuelRates?.MS || 0})</span>
               <span>{formatNumber(totals.fuelSales.MS.amount, 2)}</span>
-              <span>MS {formatNumber(totals.fuelSales.MS.liters - (entry.testingDeduction?.MS || 0), 2)} x @{entry.fuelRates?.MS || 0}</span>
             </div>
             <div className="flex justify-between">
+              <span>Power Sales ({formatNumber(totals.fuelSales.POWER.liters, 2)} L × ₹{entry.fuelRates?.POWER || 0})</span>
               <span>{formatNumber(totals.fuelSales.POWER.amount, 2)}</span>
-              <span>Power {formatNumber(totals.fuelSales.POWER.liters - (entry.testingDeduction?.POWER || 0), 2)} x @{entry.fuelRates?.POWER || 0}</span>
             </div>
             <div className="flex justify-between">
+              <span>HSD Sales ({formatNumber(totals.fuelSales.HSD.liters, 2)} L × ₹{entry.fuelRates?.HSD || 0})</span>
               <span>{formatNumber(totals.fuelSales.HSD.amount, 2)}</span>
-              <span>HSD {formatNumber(totals.fuelSales.HSD.liters - (entry.testingDeduction?.HSD || 0), 2)} x @{entry.fuelRates?.HSD || 0}</span>
             </div>
             {entry.lubeItems?.map((item) => (
               <div key={item.id} className="flex justify-between">
+                <span>{item.name} ({item.quantity} × ₹{item.rate})</span>
                 <span>{formatNumber(item.quantity * item.rate, 0)}</span>
-                <span>{item.name} {item.quantity}pcs @{item.rate}</span>
               </div>
             ))}
             {entry.incomes?.map((income) => (
               <div key={income.id} className="flex justify-between">
-                <span>{formatNumber(income.amount, 0)}</span>
                 <span>{income.description}</span>
+                <span>{formatNumber(income.amount, 0)}</span>
               </div>
             ))}
             <div className="flex justify-between font-bold border-t border-black pt-1 mt-2">
-              <span>{formatNumber(totals.grandTotalIncome, 0)}</span>
-              <span></span>
+              <span>TOTAL INFLOW</span>
+              <span>{formatNumber(totals.totalInflow, 0)}</span>
             </div>
           </div>
         </div>
 
-        {/* Right Column - Expenses */}
+        {/* Right Column - Outflows */}
         <div className="flex-1">
+          <div className="font-bold text-center mb-2 border-b border-black pb-1">OUTFLOWS</div>
           <div className="space-y-1">
-            <div className="flex justify-between">
-              <span>{formatNumber(entry.cashDeposit || 0, 0)}</span>
-              <span>Cash Deposit SBI</span>
-            </div>
-            <div className="flex justify-between">
-              <span>{formatNumber(entry.upiCollection || 0, 0)}</span>
-              <span>PhonePe/UPI</span>
-            </div>
             {entry.expenses?.map((expense) => (
               <div key={expense.id} className="flex justify-between">
-                <span>{formatNumber(expense.amount, 0)}</span>
                 <span>{expense.description}</span>
+                <span>{formatNumber(expense.amount, 0)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between">
+              <span>Bank Deposit</span>
+              <span>{formatNumber(entry.bankDeposit || 0, 0)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>UPI/Digital Collection</span>
+              <span>{formatNumber(entry.upiCollection || 0, 0)}</span>
+            </div>
+            {entry.credits?.map((credit) => (
+              <div key={credit.id} className="flex justify-between">
+                <span>Credit: {credit.customerName}</span>
+                <span>{formatNumber(credit.amount, 0)}</span>
               </div>
             ))}
             <div className="flex justify-between font-bold border-t border-black pt-1 mt-2">
-              <span>{formatNumber(totals.totalExpenses, 0)}</span>
-              <span></span>
-            </div>
-            <div className="flex justify-between font-bold text-lg mt-4">
-              <span>{formatNumber(totals.cashInHand, 0)}</span>
-              <span>Cash In Hand</span>
+              <span>TOTAL OUTFLOW</span>
+              <span>{formatNumber(totals.totalOutflow, 0)}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom Summary */}
-      <div className="mt-8 pt-4 border-t-2 border-black">
+      {/* Closing Balance */}
+      <div className="mt-6 pt-4 border-t-2 border-black">
+        <div className="flex justify-between text-lg font-bold">
+          <span>CLOSING CASH IN HAND</span>
+          <span>₹ {formatNumber(totals.closingCash, 0)}</span>
+        </div>
+      </div>
+
+      {/* Footer Summary */}
+      <div className="mt-4 pt-2 border-t border-black text-xs">
         <div className="flex justify-between">
-          <span>Sale Cash: {formatNumber(totals.totalFuelAmount + totals.totalLubeAmount, 0)}</span>
-          <span>Pump Balance: {formatNumber(totals.cashInHand, 0)}</span>
+          <span>Total Fuel Sales: ₹{formatNumber(totals.totalFuelAmount, 0)}</span>
+          <span>Total Lube Sales: ₹{formatNumber(totals.totalLubeAmount, 0)}</span>
+          <span>Net Closing: ₹{formatNumber(totals.closingCash, 0)}</span>
         </div>
       </div>
     </div>

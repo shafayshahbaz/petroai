@@ -1,10 +1,11 @@
+import { useMemo } from 'react';
 import { 
   TrendingUp, 
   Droplets, 
   Receipt, 
   Wallet,
-  ArrowUpRight,
-  ArrowDownRight
+  Fuel,
+  Package
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
@@ -18,7 +19,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { format, subDays, parseISO } from 'date-fns';
-import { useMemo } from 'react';
+import { FuelType } from '@/types/petrol-pump';
+import { cn } from '@/lib/utils';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -34,8 +36,20 @@ function formatNumber(num: number): string {
   }).format(num);
 }
 
+const fuelTypeColors: Record<FuelType, string> = {
+  MS: 'bg-amber-500',
+  HSD: 'bg-green-600',
+  POWER: 'bg-blue-600',
+};
+
+const fuelTypeNames: Record<FuelType, string> = {
+  MS: 'MS (Petrol)',
+  HSD: 'HSD (Diesel)',
+  POWER: 'POWER (Premium)',
+};
+
 export default function Dashboard() {
-  const entries = usePetrolPumpStore((state) => state.entries);
+  const { entries, tankStocks, companySettings } = usePetrolPumpStore();
 
   const todayStats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -46,7 +60,9 @@ export default function Dashboard() {
         totalSales: 0,
         totalLiters: 0,
         totalExpenses: 0,
-        cashInHand: 0,
+        closingCash: 0,
+        fuelSales: { MS: { liters: 0, amount: 0 }, HSD: { liters: 0, amount: 0 }, POWER: { liters: 0, amount: 0 } },
+        totalLubeAmount: 0,
         hasTodayData: false,
       };
     }
@@ -55,8 +71,10 @@ export default function Dashboard() {
     return {
       totalSales: totals.totalFuelAmount + totals.totalLubeAmount,
       totalLiters: totals.totalFuelLiters,
-      totalExpenses: totals.totalExpenses,
-      cashInHand: totals.cashInHand,
+      totalExpenses: totals.totalExpenses + totals.totalBankDeposit + totals.totalUpi,
+      closingCash: totals.closingCash,
+      fuelSales: totals.fuelSales,
+      totalLubeAmount: totals.totalLubeAmount,
       hasTodayData: true,
     };
   }, [entries]);
@@ -98,16 +116,54 @@ export default function Dashboard() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground">
-          Welcome back! Here's today's overview.
+          Welcome to {companySettings.name || 'your Petrol Pump'}!
         </p>
       </div>
 
-      {/* Stats Cards */}
+      {/* Product-wise Sales Breakdown */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {(['MS', 'HSD', 'POWER'] as FuelType[]).map((fuelType) => (
+          <Card key={fuelType} className={cn("border-l-4", `border-l-${fuelType === 'MS' ? 'amber-500' : fuelType === 'HSD' ? 'green-600' : 'blue-600'}`)}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {fuelTypeNames[fuelType]}
+              </CardTitle>
+              <span className={cn("w-3 h-3 rounded-full", fuelTypeColors[fuelType])} />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold text-foreground">
+                {formatCurrency(todayStats.fuelSales[fuelType].amount)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatNumber(todayStats.fuelSales[fuelType].liters)} L
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+        <Card className="border-l-4 border-l-purple-500">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Lube Sales
+            </CardTitle>
+            <Package className="w-4 h-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold text-foreground">
+              {formatCurrency(todayStats.totalLubeAmount)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Oil & lubricants
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Today's Sales
+              Today's Total Sales
             </CardTitle>
             <TrendingUp className="w-4 h-4 text-primary" />
           </CardHeader>
@@ -141,7 +197,7 @@ export default function Dashboard() {
         <Card className="border-l-4 border-l-destructive">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Expenses
+              Total Outflows
             </CardTitle>
             <Receipt className="w-4 h-4 text-destructive" />
           </CardHeader>
@@ -150,7 +206,7 @@ export default function Dashboard() {
               {formatCurrency(todayStats.totalExpenses)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Including UPI & deposits
+              Expenses, UPI & deposits
             </p>
           </CardContent>
         </Card>
@@ -158,13 +214,13 @@ export default function Dashboard() {
         <Card className="border-l-4 border-l-success">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Cash in Hand
+              Closing Cash
             </CardTitle>
             <Wallet className="w-4 h-4 text-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {formatCurrency(todayStats.cashInHand)}
+              {formatCurrency(todayStats.closingCash)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Net balance
@@ -172,6 +228,53 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Tank Stock Gauges */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Fuel className="w-5 h-5" />
+            Tank Stock Status
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {tankStocks.map((tank) => {
+              const percentage = (tank.currentStock / tank.capacity) * 100;
+              const isLow = percentage < 20;
+              return (
+                <div key={tank.fuelType} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("w-3 h-3 rounded-full", fuelTypeColors[tank.fuelType])} />
+                      <span className="font-medium">{fuelTypeNames[tank.fuelType]}</span>
+                    </div>
+                    <span className={cn(
+                      "text-sm font-mono",
+                      isLow ? "text-destructive" : "text-muted-foreground"
+                    )}>
+                      {percentage.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="h-4 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full transition-all rounded-full",
+                        isLow ? "bg-destructive" : fuelTypeColors[tank.fuelType]
+                      )}
+                      style={{ width: `${Math.min(100, percentage)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{formatNumber(tank.currentStock)} L</span>
+                    <span>/ {formatNumber(tank.capacity)} L</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

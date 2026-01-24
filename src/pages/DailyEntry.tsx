@@ -1,26 +1,33 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ChevronLeft, ChevronRight, Check, Save } from 'lucide-react';
+import { Save, CalendarIcon, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { usePetrolPumpStore } from '@/store/petrol-pump-store';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Switch } from '@/components/ui/switch';
+import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
 import { useToast } from '@/hooks/use-toast';
-import { StepRatesAndStaff } from '@/components/daily-entry/StepRatesAndStaff';
-import { StepMeterReadings } from '@/components/daily-entry/StepMeterReadings';
-import { StepLubeSales } from '@/components/daily-entry/StepLubeSales';
-import { StepExpensesAndPayments } from '@/components/daily-entry/StepExpensesAndPayments';
+import { MeterReadingsSection } from '@/components/daily-entry/MeterReadingsSection';
+import { InflowsSection } from '@/components/daily-entry/InflowsSection';
+import { OutflowsSection } from '@/components/daily-entry/OutflowsSection';
 import { cn } from '@/lib/utils';
 
-const steps = [
-  { id: 1, title: 'Rates & Staff', description: 'Set fuel rates and shift details' },
-  { id: 2, title: 'Meter Readings', description: 'Enter nozzle readings' },
-  { id: 3, title: 'Lube Sales', description: 'Add lube/oil sales' },
-  { id: 4, title: 'Expenses & Payment', description: 'Final calculations' },
-];
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
 
 export default function DailyEntry() {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [isMultiDay, setIsMultiDay] = useState(false);
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date());
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -28,31 +35,64 @@ export default function DailyEntry() {
     currentEntry, 
     createNewEntry, 
     saveEntry, 
-    clearCurrentEntry 
+    clearCurrentEntry,
+    updateFuelRates,
   } = usePetrolPumpStore();
 
   // Initialize entry if not exists
-  if (!currentEntry) {
-    createNewEntry(format(new Date(), 'yyyy-MM-dd'), '');
-  }
-
-  const handleNext = () => {
-    if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
+  useEffect(() => {
+    if (!currentEntry) {
+      createNewEntry(
+        format(startDate, 'yyyy-MM-dd'), 
+        '', 
+        isMultiDay, 
+        isMultiDay ? format(endDate, 'yyyy-MM-dd') : undefined
+      );
     }
+  }, [currentEntry, createNewEntry, startDate, isMultiDay, endDate]);
+
+  const totals = useMemo(() => {
+    if (!currentEntry) return null;
+    return calculateTotals(currentEntry);
+  }, [currentEntry]);
+
+  const handleDateChange = (date: Date | undefined, isEnd = false) => {
+    if (!date) return;
+    
+    if (isEnd) {
+      setEndDate(date);
+    } else {
+      setStartDate(date);
+    }
+    
+    // Recreate entry with new date
+    clearCurrentEntry();
+    createNewEntry(
+      format(isEnd ? startDate : date, 'yyyy-MM-dd'),
+      currentEntry?.shiftName || '',
+      isMultiDay,
+      isMultiDay ? format(isEnd ? date : endDate, 'yyyy-MM-dd') : undefined
+    );
   };
 
-  const handlePrevious = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
+  const handleMultiDayToggle = (enabled: boolean) => {
+    setIsMultiDay(enabled);
+    clearCurrentEntry();
+    createNewEntry(
+      format(startDate, 'yyyy-MM-dd'),
+      '',
+      enabled,
+      enabled ? format(endDate, 'yyyy-MM-dd') : undefined
+    );
   };
 
   const handleSave = () => {
     saveEntry();
     toast({
       title: 'Entry Saved',
-      description: 'Daily entry has been saved successfully.',
+      description: isMultiDay 
+        ? `Multi-day entry from ${format(startDate, 'dd MMM')} to ${format(endDate, 'dd MMM')} saved.`
+        : `Daily entry for ${format(startDate, 'dd MMM yyyy')} saved.`,
     });
     navigate('/sales-report');
   };
@@ -62,135 +102,153 @@ export default function DailyEntry() {
     navigate('/');
   };
 
-  const renderStep = () => {
-    switch (currentStep) {
-      case 1:
-        return <StepRatesAndStaff />;
-      case 2:
-        return <StepMeterReadings />;
-      case 3:
-        return <StepLubeSales />;
-      case 4:
-        return <StepExpensesAndPayments />;
-      default:
-        return null;
-    }
-  };
+  if (!currentEntry || !totals) return null;
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Daily Entry</h1>
           <p className="text-muted-foreground">
-            Record today's fuel sales and expenses
+            Record sales, expenses, and calculate closing balance
           </p>
         </div>
-        <Button variant="outline" onClick={handleCancel}>
-          Cancel
-        </Button>
-      </div>
-
-      {/* Progress Steps */}
-      <div className="hidden md:block">
-        <div className="flex items-center justify-between">
-          {steps.map((step, index) => (
-            <div key={step.id} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div
-                  className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all",
-                    currentStep > step.id
-                      ? "bg-success text-success-foreground"
-                      : currentStep === step.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {currentStep > step.id ? (
-                    <Check className="w-5 h-5" />
-                  ) : (
-                    step.id
-                  )}
-                </div>
-                <div className="mt-2 text-center">
-                  <p className={cn(
-                    "font-medium text-sm",
-                    currentStep >= step.id ? "text-foreground" : "text-muted-foreground"
-                  )}>
-                    {step.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground hidden lg:block">
-                    {step.description}
-                  </p>
-                </div>
-              </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={cn(
-                    "h-1 w-full mx-4 rounded",
-                    currentStep > step.id ? "bg-success" : "bg-muted"
-                  )}
-                  style={{ minWidth: '60px' }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Mobile Step Indicator */}
-      <div className="md:hidden">
-        <Card>
-          <CardContent className="py-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Step {currentStep} of {steps.length}
-              </span>
-              <span className="font-medium">{steps[currentStep - 1].title}</span>
-            </div>
-            <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${(currentStep / steps.length) * 100}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Step Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{steps[currentStep - 1].title}</CardTitle>
-        </CardHeader>
-        <CardContent>{renderStep()}</CardContent>
-      </Card>
-
-      {/* Navigation Buttons */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={handlePrevious}
-          disabled={currentStep === 1}
-        >
-          <ChevronLeft className="w-4 h-4 mr-2" />
-          Previous
-        </Button>
-
-        {currentStep < 4 ? (
-          <Button onClick={handleNext}>
-            Next
-            <ChevronRight className="w-4 h-4 ml-2" />
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={handleCancel}>
+            Cancel
           </Button>
-        ) : (
           <Button onClick={handleSave} className="bg-success hover:bg-success/90">
             <Save className="w-4 h-4 mr-2" />
             Save Entry
           </Button>
-        )}
+        </div>
       </div>
+
+      {/* Date Selection & Multi-Day Toggle */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            {/* Multi-Day Toggle */}
+            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+              <Switch
+                id="multi-day"
+                checked={isMultiDay}
+                onCheckedChange={handleMultiDayToggle}
+              />
+              <Label htmlFor="multi-day" className="cursor-pointer">
+                {isMultiDay ? (
+                  <span className="flex items-center gap-2">
+                    <ToggleRight className="w-4 h-4 text-primary" />
+                    Multi-Day Mode
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <ToggleLeft className="w-4 h-4" />
+                    Single Day Mode
+                  </span>
+                )}
+              </Label>
+            </div>
+
+            {/* Date Pickers */}
+            <div className="flex items-center gap-3 flex-1">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  {isMultiDay ? 'From Date' : 'Date'}
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[180px] justify-start">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(startDate, 'dd MMM yyyy')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={(date) => handleDateChange(date)}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {isMultiDay && (
+                <>
+                  <span className="text-muted-foreground mt-6">to</span>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">To Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-[180px] justify-start">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {format(endDate, 'dd MMM yyyy')}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={endDate}
+                          onSelect={(date) => handleDateChange(date, true)}
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Shift Name */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Shift/Staff</Label>
+              <Input
+                value={currentEntry.shiftName || ''}
+                onChange={(e) => {
+                  // Update shift name
+                }}
+                placeholder="Enter staff name"
+                className="w-[180px]"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* TOP SECTION: Meter Readings */}
+      <MeterReadingsSection />
+
+      {/* BOTTOM SECTION: T-Format Balance Sheet */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* LEFT COLUMN: Inflows */}
+        <InflowsSection totals={totals} />
+
+        {/* RIGHT COLUMN: Outflows */}
+        <OutflowsSection totals={totals} />
+      </div>
+
+      {/* Closing Balance */}
+      <Card className={cn(
+        "border-2",
+        totals.closingCash >= 0 ? "border-success bg-success/5" : "border-destructive bg-destructive/5"
+      )}>
+        <CardContent className="py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Closing Cash in Hand</p>
+              <p className="text-xs text-muted-foreground">(Carries forward to next day's Opening Cash)</p>
+            </div>
+            <p className={cn(
+              "text-3xl font-bold font-mono",
+              totals.closingCash >= 0 ? "text-success" : "text-destructive"
+            )}>
+              {formatCurrency(totals.closingCash)}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
