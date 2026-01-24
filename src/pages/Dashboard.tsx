@@ -5,9 +5,11 @@ import {
   Receipt, 
   Wallet,
   Fuel,
-  Package
+  Package,
+  AlertTriangle
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
 import {
   AreaChart,
@@ -19,7 +21,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { format, subDays, parseISO } from 'date-fns';
-import { FuelType } from '@/types/petrol-pump';
+import { FuelType, FUEL_TYPE_INFO } from '@/types/petrol-pump';
 import { cn } from '@/lib/utils';
 
 function formatCurrency(amount: number): string {
@@ -32,24 +34,12 @@ function formatCurrency(amount: number): string {
 
 function formatNumber(num: number): string {
   return new Intl.NumberFormat('en-IN', {
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(num);
 }
 
-const fuelTypeColors: Record<FuelType, string> = {
-  MS: 'bg-amber-500',
-  HSD: 'bg-green-600',
-  POWER: 'bg-blue-600',
-};
-
-const fuelTypeNames: Record<FuelType, string> = {
-  MS: 'MS (Petrol)',
-  HSD: 'HSD (Diesel)',
-  POWER: 'POWER (Premium)',
-};
-
 export default function Dashboard() {
-  const { entries, tankStocks, companySettings } = usePetrolPumpStore();
+  const { entries, tanks, companySettings } = usePetrolPumpStore();
 
   const todayStats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -110,6 +100,9 @@ export default function Dashboard() {
       .slice(0, 5);
   }, [entries]);
 
+  // Find tanks with low stock
+  const lowStockTanks = tanks.filter((tank) => tank.currentStock <= tank.lowStockThreshold);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -120,15 +113,46 @@ export default function Dashboard() {
         </p>
       </div>
 
+      {/* Low Stock Warnings */}
+      {lowStockTanks.length > 0 && (
+        <Card className="border-destructive bg-destructive/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              Low Stock Warning
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {lowStockTanks.map((tank) => (
+                <div 
+                  key={tank.id} 
+                  className="flex items-center gap-2 px-3 py-2 bg-destructive/10 rounded-lg border border-destructive/20"
+                >
+                  <span className={cn(
+                    "w-3 h-3 rounded-full",
+                    FUEL_TYPE_INFO[tank.fuelType].color
+                  )} />
+                  <span className="font-medium">{tank.name}</span>
+                  <span className="text-destructive font-mono">
+                    {formatNumber(tank.currentStock)} L
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Product-wise Sales Breakdown */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {(['MS', 'HSD', 'POWER'] as FuelType[]).map((fuelType) => (
-          <Card key={fuelType} className={cn("border-l-4", `border-l-${fuelType === 'MS' ? 'amber-500' : fuelType === 'HSD' ? 'green-600' : 'blue-600'}`)}>
+          <Card key={fuelType}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                {fuelTypeNames[fuelType]}
+                {FUEL_TYPE_INFO[fuelType].name}
               </CardTitle>
-              <span className={cn("w-3 h-3 rounded-full", fuelTypeColors[fuelType])} />
+              <span className={cn("w-3 h-3 rounded-full", FUEL_TYPE_INFO[fuelType].color)} />
             </CardHeader>
             <CardContent>
               <div className="text-xl font-bold text-foreground">
@@ -140,7 +164,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         ))}
-        <Card className="border-l-4 border-l-purple-500">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Lube Sales
@@ -229,45 +253,63 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Tank Stock Gauges */}
+      {/* Tank-Wise Stock Status */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Fuel className="w-5 h-5" />
-            Tank Stock Status
+            Tank Stock Levels
           </CardTitle>
+          <CardDescription>Current fuel stock in each tank</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {tankStocks.map((tank) => {
-              const percentage = (tank.currentStock / tank.capacity) * 100;
-              const isLow = percentage < 20;
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tanks.map((tank) => {
+              const fillPercent = tank.capacity > 0 
+                ? Math.min(100, (tank.currentStock / tank.capacity) * 100) 
+                : 0;
+              const isLowStock = tank.currentStock <= tank.lowStockThreshold;
+              
               return (
-                <div key={tank.fuelType} className="space-y-2">
-                  <div className="flex items-center justify-between">
+                <div 
+                  key={tank.id} 
+                  className={cn(
+                    "p-4 border rounded-lg",
+                    isLowStock && "border-destructive bg-destructive/5"
+                  )}
+                >
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <span className={cn("w-3 h-3 rounded-full", fuelTypeColors[tank.fuelType])} />
-                      <span className="font-medium">{fuelTypeNames[tank.fuelType]}</span>
+                      <span className={cn(
+                        "w-3 h-3 rounded-full",
+                        FUEL_TYPE_INFO[tank.fuelType].color
+                      )} />
+                      <span className="font-medium">{tank.name}</span>
                     </div>
-                    <span className={cn(
-                      "text-sm font-mono",
-                      isLow ? "text-destructive" : "text-muted-foreground"
-                    )}>
-                      {percentage.toFixed(1)}%
-                    </span>
+                    {isLowStock && (
+                      <AlertTriangle className="w-4 h-4 text-destructive" />
+                    )}
                   </div>
-                  <div className="h-4 bg-muted rounded-full overflow-hidden">
-                    <div
+                  
+                  <div className="space-y-2">
+                    <Progress 
+                      value={fillPercent} 
                       className={cn(
-                        "h-full transition-all rounded-full",
-                        isLow ? "bg-destructive" : fuelTypeColors[tank.fuelType]
-                      )}
-                      style={{ width: `${Math.min(100, percentage)}%` }}
+                        "h-3",
+                        isLowStock && "[&>div]:bg-destructive"
+                      )} 
                     />
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{formatNumber(tank.currentStock)} L</span>
-                    <span>/ {formatNumber(tank.capacity)} L</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-mono font-semibold">
+                        {formatNumber(tank.currentStock)} L
+                      </span>
+                      <span className="text-muted-foreground">
+                        / {formatNumber(tank.capacity)} L
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {fillPercent.toFixed(1)}% full
+                    </p>
                   </div>
                 </div>
               );
