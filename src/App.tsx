@@ -2,12 +2,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import DailyEntry from "./pages/DailyEntry";
 import SalesReport from "./pages/SalesReport";
+import CompanySettings from "./pages/CompanySettings";
+import StockPurchases from "./pages/StockPurchases";
 import NotFound from "./pages/NotFound";
+import { usePetrolPumpStore } from "./store/petrol-pump-store";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,6 +20,31 @@ const queryClient = new QueryClient({
   },
 });
 
+function AppRoutes() {
+  const isInitialized = usePetrolPumpStore((state) => state.companySettings.isInitialized);
+
+  // Redirect to settings if not initialized
+  if (!isInitialized) {
+    return (
+      <Routes>
+        <Route path="/settings" element={<CompanySettings />} />
+        <Route path="*" element={<Navigate to="/settings" replace />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/daily-entry" element={<DailyEntry />} />
+      <Route path="/sales-report" element={<SalesReport />} />
+      <Route path="/stock-purchases" element={<StockPurchases />} />
+      <Route path="/settings" element={<CompanySettings />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -24,12 +52,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <MainLayout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/daily-entry" element={<DailyEntry />} />
-            <Route path="/sales-report" element={<SalesReport />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AppRoutes />
         </MainLayout>
       </BrowserRouter>
     </TooltipProvider>
