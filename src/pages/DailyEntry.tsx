@@ -28,7 +28,9 @@ export default function DailyEntry() {
     currentEntry, 
     createNewEntry, 
     saveEntry, 
-    clearCurrentEntry 
+    clearCurrentEntry,
+    validateNozzleReadings,
+    normalizeNozzleReadings
   } = usePetrolPumpStore();
 
   // Initialize entry if not exists
@@ -49,6 +51,20 @@ export default function DailyEntry() {
   };
 
   const handleSave = () => {
+    // Normalize empty closing readings to opening readings (no sale scenario)
+    normalizeNozzleReadings();
+    
+    // Validate readings
+    const validation = validateNozzleReadings();
+    if (!validation.valid) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: validation.errors.join('\n'),
+      });
+      return;
+    }
+    
     saveEntry();
     toast({
       title: 'Entry Saved',

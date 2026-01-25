@@ -45,8 +45,11 @@ interface PetrolPumpState {
   getLastClosingReadings: () => Record<string, number>;
   getLastCashInHand: () => number;
   isFirstEntry: () => boolean;
-  addDebtor: (name: string) => Debtor;
+  addDebtor: (name: string, contactNumber?: string, openingBalance?: number) => Debtor;
+  updateDebtor: (id: string, data: Partial<Debtor>) => void;
   getDebtors: () => Debtor[];
+  validateNozzleReadings: () => { valid: boolean; errors: string[] };
+  normalizeNozzleReadings: () => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -408,11 +411,13 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         return entries.length === 0;
       },
 
-      addDebtor: (name) => {
+      addDebtor: (name, contactNumber, openingBalance) => {
         const newDebtor: Debtor = {
           id: generateId(),
           name,
-          totalOutstanding: 0,
+          contactNumber,
+          openingBalance: openingBalance || 0,
+          totalOutstanding: openingBalance || 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -424,8 +429,54 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         return newDebtor;
       },
 
+      updateDebtor: (id, data) => {
+        set((state) => ({
+          debtors: state.debtors.map((d) =>
+            d.id === id ? { ...d, ...data, updatedAt: new Date().toISOString() } : d
+          ),
+        }));
+      },
+
       getDebtors: () => {
         return get().debtors;
+      },
+
+      validateNozzleReadings: () => {
+        const { currentEntry } = get();
+        const errors: string[] = [];
+        
+        if (!currentEntry?.nozzles) return { valid: true, errors: [] };
+        
+        currentEntry.nozzles.forEach((nozzle) => {
+          // Only validate if closing reading was entered (not empty/0 when opening is 0)
+          if (nozzle.closingReading > 0 || nozzle.openingReading > 0) {
+            if (nozzle.closingReading < nozzle.openingReading) {
+              const config = DEFAULT_NOZZLE_CONFIG.find((c) => 
+                `nozzle-${c.fuelType}-${c.label}` === nozzle.id
+              );
+              errors.push(`${nozzle.fuelType} ${config?.label || nozzle.id}: Closing reading cannot be less than opening reading`);
+            }
+          }
+        });
+        
+        return { valid: errors.length === 0, errors };
+      },
+
+      normalizeNozzleReadings: () => {
+        // If closing is empty/0, set it to opening (no sale scenario)
+        set((state) => {
+          if (!state.currentEntry?.nozzles) return state;
+          
+          return {
+            currentEntry: {
+              ...state.currentEntry,
+              nozzles: state.currentEntry.nozzles.map((n) => ({
+                ...n,
+                closingReading: n.closingReading === 0 ? n.openingReading : n.closingReading,
+              })),
+            },
+          };
+        });
       },
     }),
     {

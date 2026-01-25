@@ -5,7 +5,9 @@ import {
   ClipboardList, 
   Fuel,
   Menu,
-  X
+  X,
+  BookOpen,
+  Users
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -15,6 +17,8 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
   { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
+  { to: '/ledger', icon: BookOpen, label: 'Ledger' },
+  { to: '/debtors', icon: Users, label: 'Debtors' },
 ];
 
 export function AppSidebar() {

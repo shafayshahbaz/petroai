@@ -35,6 +35,7 @@ export function StepExpensesAndPayments() {
   const [newIncome, setNewIncome] = useState({ description: '', amount: '' });
   const [selectedDebtor, setSelectedDebtor] = useState<Debtor | null>(null);
   const [creditAmount, setCreditAmount] = useState('');
+  const [creditRemarks, setCreditRemarks] = useState('');
 
   if (!currentEntry) return null;
 
@@ -69,9 +70,11 @@ export function StepExpensesAndPayments() {
         debtorId: selectedDebtor.id,
         debtorName: selectedDebtor.name,
         amount: parseFloat(creditAmount) || 0,
+        remarks: creditRemarks.trim() || undefined,
       });
       setSelectedDebtor(null);
       setCreditAmount('');
+      setCreditRemarks('');
     }
   };
 
@@ -237,47 +240,61 @@ export function StepExpensesAndPayments() {
               <p className="text-sm text-muted-foreground">Add credit given to customers</p>
             </div>
             
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <DebtorCombobox
-                  value={selectedDebtor?.id}
-                  onSelect={setSelectedDebtor}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <DebtorCombobox
+                    value={selectedDebtor?.id}
+                    onSelect={setSelectedDebtor}
+                  />
+                </div>
+                <Input
+                  type="number"
+                  placeholder="Amount"
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(e.target.value)}
+                  onKeyPress={handleCreditKeyPress}
+                  className="w-28 h-10 number-input"
                 />
+                <Button onClick={handleAddCreditSale} size="icon" className="h-10 w-10">
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
               <Input
-                type="number"
-                placeholder="Amount"
-                value={creditAmount}
-                onChange={(e) => setCreditAmount(e.target.value)}
+                placeholder="Remarks / Challan No. / Vehicle No."
+                value={creditRemarks}
+                onChange={(e) => setCreditRemarks(e.target.value)}
                 onKeyPress={handleCreditKeyPress}
-                className="w-28 h-10 number-input"
+                className="h-9"
               />
-              <Button onClick={handleAddCreditSale} size="icon" className="h-10 w-10">
-                <Plus className="w-4 h-4" />
-              </Button>
             </div>
 
             {creditSales.length > 0 && (
               <div className="space-y-2">
                 {creditSales.map((cs) => (
-                  <div key={cs.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                    <span className="font-medium">{cs.debtorName}</span>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={cs.amount}
-                        onChange={(e) => updateCreditSale(cs.id, { amount: parseFloat(e.target.value) || 0 })}
-                        className="w-24 h-9 number-input"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeCreditSale(cs.id)}
-                        className="h-8 w-8 text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                  <div key={cs.id} className="p-2 bg-muted/30 rounded space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{cs.debtorName}</span>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={cs.amount}
+                          onChange={(e) => updateCreditSale(cs.id, { amount: parseFloat(e.target.value) || 0 })}
+                          className="w-24 h-9 number-input"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeCreditSale(cs.id)}
+                          className="h-8 w-8 text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
+                    {cs.remarks && (
+                      <p className="text-xs text-muted-foreground pl-1">📝 {cs.remarks}</p>
+                    )}
                   </div>
                 ))}
               </div>
