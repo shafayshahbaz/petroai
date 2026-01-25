@@ -24,20 +24,11 @@ interface NavigationCard {
 
 const navigationCards: NavigationCard[] = [
   {
-    id: 'sales-person',
-    title: 'Sales by Person',
-    description: 'Track individual staff sales performance',
-    icon: Users,
-    route: '/sales-by-person',
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-500/10 hover:bg-blue-500/20',
-  },
-  {
     id: 'daily-report',
     title: 'Total Sales / Daily Report',
     description: 'View and manage daily sales entries',
     icon: FileText,
-    route: '/daily-entry',
+    route: '/total-sales',
     color: 'text-emerald-600',
     bgColor: 'bg-emerald-500/10 hover:bg-emerald-500/20',
   },

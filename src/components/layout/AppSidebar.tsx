@@ -21,7 +21,6 @@ import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/sales-by-person', icon: Users, label: 'Sales by Person' },
   { to: '/total-sales', icon: Calculator, label: 'Total Sales' },
   { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
   { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
