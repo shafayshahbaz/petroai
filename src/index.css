@@ -154,28 +154,80 @@
     @apply font-mono text-right tabular-nums;
   }
 
-  /* Print styles */
-  @media print {
-    .no-print {
-      display: none !important;
-    }
+  .print-only {
+    display: none;
+  }
+}
 
-    .print-only {
-      display: block !important;
-    }
-
-    body {
-      background: white !important;
-      color: black !important;
-    }
-
-    .print-break {
-      page-break-before: always;
-    }
+/* Print styles - OUTSIDE @layer for proper specificity */
+@media print {
+  /* Hide all non-essential UI */
+  .no-print,
+  [data-sidebar],
+  aside,
+  nav,
+  .sidebar,
+  button:not(.print-keep),
+  .edit-button,
+  header {
+    display: none !important;
   }
 
   .print-only {
-    display: none;
+    display: block !important;
+  }
+
+  /* Reset body styles */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Force the T-Format grid to maintain layout */
+  .t-format-container {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 1.5rem !important;
+    page-break-inside: avoid !important;
+  }
+
+  .inflow-column,
+  .outflow-column {
+    break-inside: avoid !important;
+  }
+
+  /* Ensure proper margins */
+  .daily-report-sheet {
+    padding: 0.5in !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* Force background graphics to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Preserve table structure */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  /* Page break control */
+  .print-break {
+    page-break-before: always;
+  }
+
+  /* Ensure content fits on page */
+  @page {
+    size: A4;
+    margin: 0.5in;
   }
 }
 

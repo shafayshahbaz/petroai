@@ -100,21 +100,71 @@ export default function SalesReport() {
             <head>
               <title>Daily Sales Report - ${selectedEntry?.date}</title>
               <style>
-                body { font-family: 'Courier New', monospace; margin: 20px; font-size: 12px; }
+                @page { size: A4; margin: 0.5in; }
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                body { font-family: 'Courier New', monospace; margin: 20px; font-size: 12px; line-height: 1.4; }
+                
+                /* Tables */
                 table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-                th, td { border: 1px solid #000; padding: 4px 8px; text-align: right; }
-                th { background: #f0f0f0; }
+                th, td { padding: 4px 8px; text-align: right; }
+                th { font-weight: bold; }
+                
+                /* Text utilities */
                 .text-left { text-align: left; }
                 .text-center { text-align: center; }
+                .text-right { text-align: right; }
                 .font-bold { font-weight: bold; }
-                .section-title { font-weight: bold; text-decoration: underline; text-align: center; margin: 15px 0 5px; }
-                .header { text-align: center; margin-bottom: 20px; }
-                .header h1 { margin: 0; font-size: 18px; }
-                .header p { margin: 5px 0; }
-                .two-column { display: flex; gap: 20px; }
-                .column { flex: 1; }
-                .summary-row { display: flex; justify-content: space-between; padding: 2px 0; }
-                .total-row { border-top: 2px solid #000; font-weight: bold; margin-top: 5px; padding-top: 5px; }
+                .font-mono { font-family: 'Courier New', monospace; }
+                
+                /* Layout */
+                .daily-report-sheet { padding: 20px; }
+                .space-y-1 > * + * { margin-top: 4px; }
+                .space-y-6 > * + * { margin-top: 24px; }
+                .mb-3, .mb-4, .mb-6, .mb-8 { margin-bottom: 16px; }
+                .mt-2, .mt-3, .mt-6 { margin-top: 12px; }
+                .pt-2, .pt-4 { padding-top: 8px; }
+                .pb-1, .pb-4 { padding-bottom: 4px; }
+                .pr-4 { padding-right: 16px; }
+                .pl-4 { padding-left: 16px; }
+                .p-2 { padding: 8px; }
+                
+                /* Borders */
+                .border-t { border-top: 1px solid #000; }
+                .border-b { border-bottom: 1px solid #000; }
+                .border-r { border-right: 1px solid #000; }
+                .border-t-2, .border-b-2 { border-top: 2px solid #000; border-bottom: 2px solid #000; }
+                .border-black { border-color: #000; }
+                
+                /* T-FORMAT Grid - CRITICAL */
+                .t-format-container {
+                  display: grid !important;
+                  grid-template-columns: 1fr 1fr !important;
+                  gap: 24px !important;
+                  page-break-inside: avoid;
+                }
+                .inflow-column { border-right: 1px solid #000; padding-right: 16px; }
+                .outflow-column { padding-left: 16px; }
+                
+                /* Flex utilities */
+                .flex { display: flex; }
+                .justify-between { justify-content: space-between; }
+                .justify-end { justify-content: flex-end; }
+                .gap-4 { gap: 16px; }
+                
+                /* Background */
+                .bg-gray-200 { background: #e5e5e5; }
+                
+                /* Text sizes */
+                .text-lg { font-size: 16px; }
+                .text-2xl { font-size: 24px; }
+                .text-base { font-size: 14px; }
+                .text-sm { font-size: 12px; }
+                
+                /* Tracking */
+                .tracking-wide { letter-spacing: 0.05em; }
+                
+                /* Colors for print */
+                .text-amber-800 { color: #92400e; }
               </style>
             </head>
             <body>
@@ -123,7 +173,7 @@ export default function SalesReport() {
           </html>
         `);
         printWindow.document.close();
-        printWindow.print();
+        setTimeout(() => printWindow.print(), 250);
       }
     }
     setSelectedEntry(null);

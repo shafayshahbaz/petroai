@@ -1,5 +1,5 @@
 import { format, parseISO } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, Lock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -14,12 +14,13 @@ import { cn } from '@/lib/utils';
 import { FuelRates } from '@/types/petrol-pump';
 
 export function StepRatesAndStaff() {
-  const { currentEntry, createNewEntry, updateFuelRates, updateOpeningBalance } = usePetrolPumpStore();
+  const { currentEntry, createNewEntry, updateFuelRates, updateOpeningBalance, isFirstEntry } = usePetrolPumpStore();
 
   if (!currentEntry) return null;
 
   const date = currentEntry.date ? parseISO(currentEntry.date) : new Date();
   const rates = currentEntry.fuelRates || { MS: 0, HSD: 0, POWER: 0 };
+  const isFirst = isFirstEntry();
 
   const handleDateChange = (newDate: Date | undefined) => {
     if (newDate) {
@@ -91,7 +92,10 @@ export function StepRatesAndStaff() {
 
       {/* Opening Balance */}
       <div className="space-y-2">
-        <Label htmlFor="openingBalance">Opening Balance (Yesterday's Cash in Hand)</Label>
+        <Label htmlFor="openingBalance" className="flex items-center gap-2">
+          Opening Balance (Yesterday's Cash in Hand)
+          {!isFirst && <Lock className="h-3 w-3 text-muted-foreground" />}
+        </Label>
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
           <Input
@@ -101,11 +105,18 @@ export function StepRatesAndStaff() {
             placeholder="0.00"
             value={currentEntry.openingBalance || ''}
             onChange={(e) => handleOpeningBalanceChange(e.target.value)}
-            className="h-12 pl-8 number-input text-lg"
+            disabled={!isFirst}
+            className={cn(
+              "h-12 pl-8 number-input text-lg",
+              !isFirst && "bg-muted cursor-not-allowed"
+            )}
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          This is automatically pre-filled from the last entry's cash in hand.
+          {isFirst 
+            ? "This is your first entry. Enter the opening cash balance manually."
+            : "Auto-filled from the last entry's cash in hand. Cannot be modified."
+          }
         </p>
       </div>
 

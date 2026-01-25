@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
 import { Separator } from '@/components/ui/separator';
+import { DebtorCombobox } from './DebtorCombobox';
+import { Debtor } from '@/types/petrol-pump';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -23,16 +25,22 @@ export function StepExpensesAndPayments() {
     addIncome,
     updateIncome,
     removeIncome,
+    addCreditSale,
+    updateCreditSale,
+    removeCreditSale,
     updatePayments 
   } = usePetrolPumpStore();
   
   const [newExpense, setNewExpense] = useState({ description: '', amount: '' });
   const [newIncome, setNewIncome] = useState({ description: '', amount: '' });
+  const [selectedDebtor, setSelectedDebtor] = useState<Debtor | null>(null);
+  const [creditAmount, setCreditAmount] = useState('');
 
   if (!currentEntry) return null;
 
   const expenses = currentEntry.expenses || [];
   const incomes = currentEntry.incomes || [];
+  const creditSales = currentEntry.creditSales || [];
   const totals = calculateTotals(currentEntry);
 
   const handleAddExpense = () => {
@@ -55,12 +63,28 @@ export function StepExpensesAndPayments() {
     }
   };
 
+  const handleAddCreditSale = () => {
+    if (selectedDebtor && creditAmount) {
+      addCreditSale({
+        debtorId: selectedDebtor.id,
+        debtorName: selectedDebtor.name,
+        amount: parseFloat(creditAmount) || 0,
+      });
+      setSelectedDebtor(null);
+      setCreditAmount('');
+    }
+  };
+
   const handleExpenseKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleAddExpense();
   };
 
   const handleIncomeKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleAddIncome();
+  };
+
+  const handleCreditKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleAddCreditSale();
   };
 
   return (
@@ -206,6 +230,60 @@ export function StepExpensesAndPayments() {
             </div>
           </div>
 
+          {/* Credit Sales (Debtors) */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Credit Sales (Debtors)</Label>
+              <p className="text-sm text-muted-foreground">Add credit given to customers</p>
+            </div>
+            
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <DebtorCombobox
+                  value={selectedDebtor?.id}
+                  onSelect={setSelectedDebtor}
+                />
+              </div>
+              <Input
+                type="number"
+                placeholder="Amount"
+                value={creditAmount}
+                onChange={(e) => setCreditAmount(e.target.value)}
+                onKeyPress={handleCreditKeyPress}
+                className="w-28 h-10 number-input"
+              />
+              <Button onClick={handleAddCreditSale} size="icon" className="h-10 w-10">
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {creditSales.length > 0 && (
+              <div className="space-y-2">
+                {creditSales.map((cs) => (
+                  <div key={cs.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <span className="font-medium">{cs.debtorName}</span>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        value={cs.amount}
+                        onChange={(e) => updateCreditSale(cs.id, { amount: parseFloat(e.target.value) || 0 })}
+                        className="w-24 h-9 number-input"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeCreditSale(cs.id)}
+                        className="h-8 w-8 text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Expenses */}
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Other expenses (Pump Exp, Withdrawals, etc.)</p>
@@ -270,6 +348,12 @@ export function StepExpensesAndPayments() {
               <span>UPI Collection</span>
               <span className="font-mono">{formatCurrency(currentEntry.upiCollection || 0)}</span>
             </div>
+            {creditSales.map((cs) => (
+              <div key={cs.id} className="flex justify-between text-sm">
+                <span>Credit: {cs.debtorName}</span>
+                <span className="font-mono">{formatCurrency(cs.amount)}</span>
+              </div>
+            ))}
             {expenses.map((expense) => (
               <div key={expense.id} className="flex justify-between text-sm">
                 <span>{expense.description}</span>
