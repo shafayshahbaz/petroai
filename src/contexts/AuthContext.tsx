@@ -14,6 +14,7 @@ interface AuthContextType {
   clientId: string | null;
   isFirstLogin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshSubscriptionStatus: () => Promise<void>;
 }
@@ -123,6 +124,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      const redirectUrl = `${window.location.origin}/`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+        },
+      });
+      return { error: error as Error | null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -144,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clientId,
         isFirstLogin,
         signIn,
+        signInWithGoogle,
         signOut,
         refreshSubscriptionStatus,
       }}
