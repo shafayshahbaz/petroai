@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useLayoutEffect } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { StepIndicator } from './StepIndicator';
 import { TruckVisual } from './TruckVisual';
 import { DensityCalculator } from './DensityCalculator';
+import { ChamberConfigRow } from './ChamberConfigRow';
 import { usePurchaseStore } from '@/store/purchase-store';
 import { TruckChamber, DensityCheck, StockVerification, calculateCorrectedDensity } from '@/types/purchase';
 import { FuelType } from '@/types/petrol-pump';
@@ -25,7 +26,7 @@ const STEP_LABELS = [
   'Verification',
 ];
 
-const generateId = () => Math.random().toString(36).substring(2, 15);
+const chamberIdFromNumber = (chamberNumber: number) => `chamber-${chamberNumber}`;
 
 export function TankerUnloadingWizard() {
   const navigate = useNavigate();
@@ -63,6 +64,13 @@ export function TankerUnloadingWizard() {
   // Step 2: Truck Config
   const [numberOfChambers, setNumberOfChambers] = useState<number>(0);
   const [chambers, setChambers] = useState<TruckChamber[]>([]);
+
+  // Keep the last-used chamber capacity available for future chamber creation,
+  // without retriggering chamber regeneration while the user types.
+  const lastChamberCapacityRef = useRef(lastChamberCapacity);
+  useEffect(() => {
+    lastChamberCapacityRef.current = lastChamberCapacity;
+  }, [lastChamberCapacity]);
   
   // Step 3: Quality Check
   const [densityCheck, setDensityCheck] = useState<DensityCheck>({
@@ -77,23 +85,33 @@ export function TankerUnloadingWizard() {
   // Step 5: Stock Verification
   const [stockVerifications, setStockVerifications] = useState<StockVerification[]>([]);
 
-  // Generate chambers when number changes
+  // Generate chambers when chamber count changes.
+  // IMPORTANT: do NOT depend on lastChamberCapacity here; updating it while typing would
+  // recreate the chambers array and cause inputs to remount (focus loss).
   useEffect(() => {
-    if (numberOfChambers > 0) {
-      const newChambers: TruckChamber[] = Array.from({ length: numberOfChambers }, (_, i) => ({
-        id: generateId(),
-        chamberNumber: i + 1,
-        fuelType: 'MS' as FuelType,
-        capacity: lastChamberCapacity, // Use remembered capacity (default 3000L)
-        challanDip: 0,
-        physicalDip: 0,
-        destinationTankId: null,
-      }));
-      setChambers(newChambers);
-    } else {
+    if (numberOfChambers <= 0) {
       setChambers([]);
+      return;
     }
-  }, [numberOfChambers, lastChamberCapacity]);
+
+    setChambers((prev) => {
+      const byNumber = new Map(prev.map((c) => [c.chamberNumber, c] as const));
+      return Array.from({ length: numberOfChambers }, (_, i) => {
+        const chamberNumber = i + 1;
+        const existing = byNumber.get(chamberNumber);
+        if (existing) return existing;
+        return {
+          id: chamberIdFromNumber(chamberNumber),
+          chamberNumber,
+          fuelType: 'MS' as FuelType,
+          capacity: lastChamberCapacityRef.current,
+          challanDip: 0,
+          physicalDip: 0,
+          destinationTankId: null,
+        } satisfies TruckChamber;
+      });
+    });
+  }, [numberOfChambers]);
 
   // Generate stock verifications based on selected tanks in step 4
   useEffect(() => {
@@ -123,11 +141,24 @@ export function TankerUnloadingWizard() {
     setChambers(prev => prev.map(c => 
       c.id === chamberId ? { ...c, ...updates } : c
     ));
-    // If capacity is updated, remember it for future entries
-    if (updates.capacity && updates.capacity > 0) {
-      setLastChamberCapacity(updates.capacity);
-    }
-  }, [setLastChamberCapacity]);
+  }, []);
+
+  const commitLastChamberCapacity = useCallback(
+    (capacity: number) => {
+      if (capacity > 0) setLastChamberCapacity(capacity);
+    },
+    [setLastChamberCapacity]
+  );
+
+  const handleChamberFuelTypeChange = useCallback(
+    (chamberId: string, fuelType: FuelType) => updateChamber(chamberId, { fuelType }),
+    [updateChamber]
+  );
+
+  const handleChamberCapacityChange = useCallback(
+    (chamberId: string, capacity: number) => updateChamber(chamberId, { capacity }),
+    [updateChamber]
+  );
 
   const updateVerification = useCallback((tankId: string, updates: Partial<StockVerification>) => {
     setStockVerifications(prev => prev.map(v => {
@@ -338,33 +369,14 @@ export function TankerUnloadingWizard() {
                   </TableHeader>
                   <TableBody>
                     {chambers.map((chamber, index) => (
-                      <TableRow key={chamber.id}>
-                        <TableCell className="font-medium">C{index + 1}</TableCell>
-                        <TableCell>
-                          <Select
-                            value={chamber.fuelType}
-                            onValueChange={(val) => updateChamber(chamber.id, { fuelType: val as FuelType })}
-                          >
-                            <SelectTrigger className="h-12">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="MS">MS (Petrol)</SelectItem>
-                              <SelectItem value="HSD">HSD (Diesel)</SelectItem>
-                              <SelectItem value="POWER">Power</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            value={chamber.capacity || ''}
-                            onChange={(e) => updateChamber(chamber.id, { capacity: Number(e.target.value) })}
-                            placeholder="e.g., 4000"
-                            className="h-12"
-                          />
-                        </TableCell>
-                      </TableRow>
+                      <ChamberConfigRow
+                        key={chamber.id}
+                        chamber={chamber}
+                        index={index}
+                        onFuelTypeChange={handleChamberFuelTypeChange}
+                        onCapacityChange={handleChamberCapacityChange}
+                        onCapacityCommit={commitLastChamberCapacity}
+                      />
                     ))}
                   </TableBody>
                 </Table>
