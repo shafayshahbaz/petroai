@@ -57,6 +57,9 @@ interface PurchaseState {
   
   // Finalize unloading - updates tank stock
   finalizeUnloading: (purchaseId: string, stockVerifications: StockVerification[]) => void;
+  
+  // Clear all data
+  clearAllData: () => void;
 }
 
 export const usePurchaseStore = create<PurchaseState>()(
@@ -313,6 +316,16 @@ export const usePurchaseStore = create<PurchaseState>()(
         set({
           tanks: updatedTanks,
           purchases: updatedPurchases,
+        });
+      },
+
+      clearAllData: () => {
+        set({
+          tanks: [],
+          purchases: [],
+          lastChamberCapacity: 3000,
+          tankNozzleConnections: [],
+          lastPrices: { MS: 0, HSD: 0, POWER: 0 },
         });
       },
     }),

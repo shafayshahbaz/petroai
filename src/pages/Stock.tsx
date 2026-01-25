@@ -3,6 +3,7 @@ import { usePurchaseStore } from '@/store/purchase-store';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { TankCard } from '@/components/stock/TankCard';
 import { TankNozzleModal } from '@/components/stock/TankNozzleModal';
+import { EditTankModal } from '@/components/stock/EditTankModal';
 import { Button } from '@/components/ui/button';
 import { Plus, Database } from 'lucide-react';
 import { UndergroundTank } from '@/types/purchase';
@@ -11,6 +12,7 @@ export default function Stock() {
   const { tanks, initializeTanks } = usePurchaseStore();
   const [selectedTank, setSelectedTank] = useState<UndergroundTank | null>(null);
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
     initializeTanks();
@@ -20,6 +22,11 @@ export default function Stock() {
   const handleManageConnections = (tank: UndergroundTank) => {
     setSelectedTank(tank);
     setIsConnectionModalOpen(true);
+  };
+
+  const handleEditTank = (tank: UndergroundTank) => {
+    setSelectedTank(tank);
+    setIsEditModalOpen(true);
   };
 
   return (
@@ -40,6 +47,7 @@ export default function Stock() {
               key={tank.id}
               tank={tank}
               onManageConnections={() => handleManageConnections(tank)}
+              onEditTank={() => handleEditTank(tank)}
             />
           ))}
         </div>
@@ -61,6 +69,16 @@ export default function Stock() {
         isOpen={isConnectionModalOpen}
         onClose={() => {
           setIsConnectionModalOpen(false);
+          setSelectedTank(null);
+        }}
+      />
+
+      {/* Edit Tank Modal */}
+      <EditTankModal
+        tank={selectedTank}
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
           setSelectedTank(null);
         }}
       />
