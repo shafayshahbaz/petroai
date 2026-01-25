@@ -7,7 +7,9 @@ import {
   Menu,
   X,
   Package,
-  Settings
+  Settings,
+  Users,
+  Calculator
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -16,6 +18,8 @@ import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/sales-by-person', icon: Users, label: 'Sales by Person' },
+  { to: '/total-sales', icon: Calculator, label: 'Total Sales' },
   { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
   { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
   { to: '/stock-purchases', icon: Package, label: 'Purchases' },
