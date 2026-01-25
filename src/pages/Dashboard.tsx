@@ -4,7 +4,6 @@ import {
   Wallet,
   BadgeCheck,
   BookUser,
-  Calculator,
   ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -20,14 +19,6 @@ interface ModuleTile {
 }
 
 const moduleTiles: ModuleTile[] = [
-  {
-    id: 'total-sales',
-    title: 'Total Sales',
-    icon: Calculator,
-    route: '/total-sales',
-    color: 'text-emerald-600',
-    bgColor: 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20',
-  },
   {
     id: 'daily-entry',
     title: 'Daily Entry',
