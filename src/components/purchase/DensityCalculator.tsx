@@ -49,14 +49,14 @@ export function DensityCalculator({ densityCheck, onChange }: DensityCalculatorP
         <CardTitle className="text-lg flex items-center gap-2">
           Density Check
           <span className="text-sm font-normal text-muted-foreground">
-            (ASTM D1250 Table 53B @ 15°C)
+            (Corrected to 15°C)
           </span>
           {physicalDensity > 0 && (
             <span className={cn(
               "ml-2 px-2 py-0.5 rounded text-xs font-medium",
               detectedFuelType === 'HSD' ? "bg-blue-500/20 text-blue-600" : "bg-orange-500/20 text-orange-600"
             )}>
-              K₀ = {physicalDensity < 800 ? '346.4228' : '186.9696'} ({detectedFuelType})
+              {physicalDensity < 800 ? '×0.875' : '×1.133'}/°C ({detectedFuelType})
             </span>
           )}
         </CardTitle>
