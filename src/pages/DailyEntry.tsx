@@ -65,11 +65,21 @@ export default function DailyEntry() {
       return;
     }
     
-    saveEntry();
-    toast({
-      title: 'Entry Saved',
-      description: 'Daily entry has been saved successfully.',
-    });
+    const result = saveEntry();
+    
+    // Check for negative stock warning
+    if (result && result.hasNegativeStock) {
+      toast({
+        variant: 'destructive',
+        title: 'Negative Stock Warning',
+        description: 'One or more tanks now have negative stock. Please verify your readings or check for calibration errors.',
+      });
+    } else {
+      toast({
+        title: 'Entry Saved',
+        description: 'Daily entry has been saved successfully.',
+      });
+    }
     navigate('/sales-report');
   };
 

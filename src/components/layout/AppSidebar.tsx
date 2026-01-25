@@ -9,7 +9,8 @@ import {
   BookOpen,
   Users,
   Truck,
-  Database
+  Database,
+  Settings
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -17,12 +18,13 @@ import { Button } from '@/components/ui/button';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
   { to: '/purchase', icon: Truck, label: 'Purchase' },
   { to: '/stock', icon: Database, label: 'Stock' },
-  { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
   { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
   { to: '/ledger', icon: BookOpen, label: 'Ledger' },
   { to: '/debtors', icon: Users, label: 'Debtors' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export function AppSidebar() {

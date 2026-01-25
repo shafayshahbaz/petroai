@@ -13,6 +13,10 @@ import {
   DEFAULT_NOZZLE_CONFIG,
   FuelType
 } from '@/types/petrol-pump';
+import { usePurchaseStore } from '@/store/purchase-store';
+
+// Helper to get purchase store reference
+const usePurchaseStoreRef = () => usePurchaseStore.getState();
 
 interface PetrolPumpState {
   entries: DailyEntry[];
@@ -38,7 +42,7 @@ interface PetrolPumpState {
   updatePayments: (upiCollection: number, cashDeposit: number) => void;
   updateTestingDeduction: (fuelType: FuelType, amount: number) => void;
   updateOpeningBalance: (amount: number) => void;
-  saveEntry: () => void;
+  saveEntry: () => { hasNegativeStock: boolean } | undefined;
   deleteEntry: (id: string) => void;
   loadEntryForEdit: (id: string) => void;
   clearCurrentEntry: () => void;
@@ -349,8 +353,39 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
           }
         });
 
+        // Check if this is an edit (existing entry) - we need to reverse old stock deductions first
         const existingIndex = entries.findIndex((e) => e.id === completeEntry.id);
+        const isEdit = existingIndex >= 0;
         
+        // Import purchase store for stock deduction
+        const purchaseStore = usePurchaseStoreRef();
+        
+        if (isEdit) {
+          // Reverse the old entry's stock deductions
+          const oldEntry = entries[existingIndex];
+          oldEntry.nozzles.forEach((nozzle) => {
+            const testDeduction = oldEntry.testingDeduction?.[nozzle.fuelType] || 0;
+            const liters = Math.max(0, nozzle.closingReading - nozzle.openingReading - testDeduction);
+            if (liters > 0) {
+              // Add back the old amount (reverse deduction)
+              purchaseStore.addToTankByNozzle(nozzle.id, liters);
+            }
+          });
+        }
+
+        // Deduct new sales from tanks
+        let hasNegativeStock = false;
+        normalizedNozzles.forEach((nozzle) => {
+          const testDeduction = completeEntry.testingDeduction?.[nozzle.fuelType] || 0;
+          const liters = Math.max(0, nozzle.closingReading - nozzle.openingReading - testDeduction);
+          if (liters > 0) {
+            const result = purchaseStore.deductFromTankByNozzle(nozzle.id, liters);
+            if (result && result.isNegative) {
+              hasNegativeStock = true;
+            }
+          }
+        });
+
         if (existingIndex >= 0) {
           set({
             entries: entries.map((e, i) => (i === existingIndex ? completeEntry : e)),
@@ -364,6 +399,8 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
             currentEntry: null,
           });
         }
+        
+        return { hasNegativeStock };
       },
 
       deleteEntry: (id) => {

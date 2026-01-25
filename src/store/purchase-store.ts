@@ -23,6 +23,7 @@ interface PurchaseState {
   purchases: PurchaseEntry[];
   lastChamberCapacity: number;
   tankNozzleConnections: TankNozzleConnection[];
+  lastPrices: { MS: number; HSD: number; POWER: number };
   
   // Tank actions
   initializeTanks: () => void;
@@ -35,17 +36,25 @@ interface PurchaseState {
   // Tank-Nozzle connection actions
   connectNozzleToTank: (nozzleId: string, tankId: string) => void;
   disconnectNozzle: (nozzleId: string) => void;
+  disconnectAllNozzlesFromTank: (tankId: string) => void;
   getNozzlesForTank: (tankId: string) => string[];
   getTankForNozzle: (nozzleId: string) => string | null;
-  deductFromTankByNozzle: (nozzleId: string, liters: number) => void;
+  deductFromTankByNozzle: (nozzleId: string, liters: number) => { isNegative: boolean } | null;
+  addToTankByNozzle: (nozzleId: string, liters: number) => void;
   
   // Purchase actions
   savePurchase: (purchase: Omit<PurchaseEntry, 'id' | 'createdAt' | 'updatedAt'>) => PurchaseEntry;
   updatePurchase: (id: string, data: Partial<PurchaseEntry>) => void;
   deletePurchase: (id: string) => void;
+  reversePurchaseStock: (purchaseId: string) => void;
   getPurchases: () => PurchaseEntry[];
   getPurchaseById: (id: string) => PurchaseEntry | undefined;
   setLastChamberCapacity: (capacity: number) => void;
+  getLastPrice: (fuelType: FuelType) => number;
+  setLastPrice: (fuelType: FuelType, price: number) => void;
+  
+  // Validation
+  validateTankCapacity: (tankId: string, addQty: number) => { valid: boolean; overflow: number };
   
   // Finalize unloading - updates tank stock
   finalizeUnloading: (purchaseId: string, stockVerifications: StockVerification[]) => void;
@@ -58,6 +67,7 @@ export const usePurchaseStore = create<PurchaseState>()(
       purchases: [],
       lastChamberCapacity: 3000,
       tankNozzleConnections: [],
+      lastPrices: { MS: 0, HSD: 0, POWER: 0 },
 
       initializeTanks: () => {
         const { tanks } = get();
@@ -96,6 +106,8 @@ export const usePurchaseStore = create<PurchaseState>()(
       },
 
       deleteTank: (id) => {
+        // Disconnect all nozzles from this tank first
+        get().disconnectAllNozzlesFromTank(id);
         set((state) => ({
           tanks: state.tanks.filter((t) => t.id !== id),
         }));
@@ -136,6 +148,14 @@ export const usePurchaseStore = create<PurchaseState>()(
         }));
       },
 
+      disconnectAllNozzlesFromTank: (tankId) => {
+        set((state) => ({
+          tankNozzleConnections: state.tankNozzleConnections.filter(
+            (c) => c.tankId !== tankId
+          ),
+        }));
+      },
+
       getNozzlesForTank: (tankId) => {
         return get().tankNozzleConnections
           .filter((c) => c.tankId === tankId)
@@ -151,6 +171,29 @@ export const usePurchaseStore = create<PurchaseState>()(
 
       deductFromTankByNozzle: (nozzleId, liters) => {
         const tankId = get().getTankForNozzle(nozzleId);
+        if (!tankId) return null;
+        
+        const tank = get().tanks.find(t => t.id === tankId);
+        const newStock = (tank?.currentStock || 0) - liters;
+        const isNegative = newStock < 0;
+        
+        set((state) => ({
+          tanks: state.tanks.map((t) =>
+            t.id === tankId
+              ? { 
+                  ...t, 
+                  currentStock: newStock, // Allow negative for warning purposes
+                  updatedAt: new Date().toISOString() 
+                }
+              : t
+          ),
+        }));
+        
+        return { isNegative };
+      },
+
+      addToTankByNozzle: (nozzleId, liters) => {
+        const tankId = get().getTankForNozzle(nozzleId);
         if (!tankId) return;
         
         set((state) => ({
@@ -158,7 +201,7 @@ export const usePurchaseStore = create<PurchaseState>()(
             t.id === tankId
               ? { 
                   ...t, 
-                  currentStock: Math.max(0, t.currentStock - liters), 
+                  currentStock: t.currentStock + liters, 
                   updatedAt: new Date().toISOString() 
                 }
               : t
@@ -189,9 +232,33 @@ export const usePurchaseStore = create<PurchaseState>()(
       },
 
       deletePurchase: (id) => {
+        // First reverse the stock before deleting
+        get().reversePurchaseStock(id);
         set((state) => ({
           purchases: state.purchases.filter((p) => p.id !== id),
         }));
+      },
+
+      reversePurchaseStock: (purchaseId) => {
+        const { tanks, purchases } = get();
+        const purchase = purchases.find(p => p.id === purchaseId);
+        if (!purchase || purchase.status !== 'completed') return;
+        
+        // Reverse each tank's stock based on stockVerifications
+        const updatedTanks = tanks.map((tank) => {
+          const verification = purchase.stockVerifications?.find((v) => v.tankId === tank.id);
+          if (verification) {
+            // Subtract the received quantity to reverse the purchase
+            return {
+              ...tank,
+              currentStock: Math.max(0, tank.currentStock - verification.receivedQty),
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          return tank;
+        });
+        
+        set({ tanks: updatedTanks });
       },
 
       getPurchases: () => {
@@ -204,6 +271,29 @@ export const usePurchaseStore = create<PurchaseState>()(
 
       setLastChamberCapacity: (capacity: number) => {
         set({ lastChamberCapacity: capacity });
+      },
+
+      getLastPrice: (fuelType) => {
+        return get().lastPrices[fuelType];
+      },
+
+      setLastPrice: (fuelType, price) => {
+        set((state) => ({
+          lastPrices: { ...state.lastPrices, [fuelType]: price },
+        }));
+      },
+
+      validateTankCapacity: (tankId, addQty) => {
+        const tank = get().tanks.find(t => t.id === tankId);
+        if (!tank) return { valid: false, overflow: addQty };
+        
+        const newTotal = tank.currentStock + addQty;
+        const overflow = newTotal - tank.capacity;
+        
+        return {
+          valid: overflow <= 0,
+          overflow: Math.max(0, overflow),
+        };
       },
 
 

@@ -29,7 +29,18 @@ const generateId = () => Math.random().toString(36).substring(2, 15);
 
 export function TankerUnloadingWizard() {
   const navigate = useNavigate();
-  const { tanks, initializeTanks, savePurchase, finalizeUnloading, getTanksByFuelType, lastChamberCapacity, setLastChamberCapacity } = usePurchaseStore();
+  const { 
+    tanks, 
+    initializeTanks, 
+    savePurchase, 
+    finalizeUnloading, 
+    getTanksByFuelType, 
+    lastChamberCapacity, 
+    setLastChamberCapacity,
+    validateTankCapacity,
+    getLastPrice,
+    setLastPrice
+  } = usePurchaseStore();
   
   // Initialize tanks on mount
   useEffect(() => {
@@ -169,6 +180,15 @@ export function TankerUnloadingWizard() {
   };
 
   const handleFinalize = () => {
+    // Validate tank capacities before finalizing
+    for (const verification of stockVerifications) {
+      const tank = tanks.find(t => t.id === verification.tankId);
+      if (tank && verification.postUnloadStock > tank.capacity) {
+        toast.error(`Storage Overflow! ${tank.name} cannot exceed capacity of ${tank.capacity}L`);
+        return;
+      }
+    }
+
     // Save the purchase entry with computed density status
     const finalDensityCheck: DensityCheck = {
       ...densityCheck,
@@ -188,6 +208,13 @@ export function TankerUnloadingWizard() {
 
     // Update tank stocks
     finalizeUnloading(purchase.id, stockVerifications);
+
+    // Remember the price per liter for each fuel type for next invoice
+    const totalQtyByFuel: Record<string, number> = {};
+    chambers.forEach(c => {
+      totalQtyByFuel[c.fuelType] = (totalQtyByFuel[c.fuelType] || 0) + c.capacity;
+    });
+    // We don't have per-fuel price here, but this framework allows for future enhancement
 
     toast.success('Tanker unloading completed successfully!');
     navigate('/purchase');
