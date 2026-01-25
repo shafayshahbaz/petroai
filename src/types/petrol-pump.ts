@@ -19,6 +19,10 @@ export interface Tank {
   capacity: number; // in liters
   currentStock: number; // in liters
   lowStockThreshold: number; // Alert when below this
+  // Extended tank details
+  dipReading?: number;
+  waterLevel?: number;
+  temperature?: number;
 }
 
 // Dynamic Machine configuration
@@ -293,9 +297,9 @@ export const DEFAULT_TANK_CAPACITIES: Record<FuelType, number> = {
   POWER: 10000,
 };
 
-// Fuel type display info
+// Fuel type display info - Updated colors: MS=Orange, HSD=Blue, Power=Pink
 export const FUEL_TYPE_INFO: Record<FuelType, { name: string; color: string }> = {
   MS: { name: 'MS (Petrol)', color: 'bg-amber-500' },
-  HSD: { name: 'HSD (Diesel)', color: 'bg-green-600' },
-  POWER: { name: 'POWER (Premium)', color: 'bg-blue-600' },
+  HSD: { name: 'HSD (Diesel)', color: 'bg-blue-600' },
+  POWER: { name: 'Power', color: 'bg-pink-500' },
 };

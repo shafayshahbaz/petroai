@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
@@ -10,7 +10,8 @@ import {
   Plus,
   Trash2,
   Settings2,
-  Link2
+  Link2,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { useToast } from '@/hooks/use-toast';
 import { FuelType, FUEL_TYPE_INFO } from '@/types/petrol-pump';
@@ -61,6 +63,62 @@ export default function CompanySettings() {
     updateInitialCashBalance,
     completeInitialSetup,
   } = usePetrolPumpStore();
+
+  // Get all assigned nozzle IDs for exclusivity check
+  const assignedNozzleIds = useMemo(() => {
+    const assigned = new Set<string>();
+    machines.forEach((machine) => {
+      machine.nozzles.forEach((nozzle) => {
+        if (nozzle.tankId) {
+          assigned.add(nozzle.id);
+        }
+      });
+    });
+    return assigned;
+  }, [machines]);
+
+  // Get available nozzles for a specific tank (same fuel type & not assigned elsewhere)
+  const getAvailableNozzlesForTank = (tankId: string, tankFuelType: FuelType) => {
+    const availableNozzles: Array<{ id: string; label: string; machineId: string; machineName: string; fuelType: FuelType }> = [];
+    
+    machines.forEach((machine) => {
+      machine.nozzles.forEach((nozzle) => {
+        // Rule A: Only show nozzles matching the tank's fuel type
+        // Rule B: Only show unassigned nozzles OR nozzles already assigned to this tank
+        if (nozzle.fuelType === tankFuelType && (!nozzle.tankId || nozzle.tankId === tankId)) {
+          availableNozzles.push({
+            id: nozzle.id,
+            label: nozzle.label,
+            machineId: machine.id,
+            machineName: machine.name,
+            fuelType: nozzle.fuelType,
+          });
+        }
+      });
+    });
+    
+    return availableNozzles;
+  };
+
+  // Get nozzles currently assigned to a tank
+  const getNozzlesForTank = (tankId: string) => {
+    const nozzles: Array<{ id: string; label: string; machineId: string; machineName: string }> = [];
+    
+    machines.forEach((machine) => {
+      machine.nozzles.forEach((nozzle) => {
+        if (nozzle.tankId === tankId) {
+          nozzles.push({
+            id: nozzle.id,
+            label: nozzle.label,
+            machineId: machine.id,
+            machineName: machine.name,
+          });
+        }
+      });
+    });
+    
+    return nozzles;
+  };
 
   const handleNext = () => {
     if (currentStep < 4) {
@@ -106,8 +164,16 @@ export default function CompanySettings() {
     addNozzleToMachine(machineId, {
       label: `N${nozzleCount + 1}`,
       fuelType,
-      tankId: tanks.find((t) => t.fuelType === fuelType)?.id || '',
+      tankId: '', // Not assigned initially
     });
+  };
+
+  const handleRemoveNozzleFromTank = (machineId: string, nozzleId: string) => {
+    mapNozzleToTank(machineId, nozzleId, '');
+  };
+
+  const handleAssignNozzleToTank = (machineId: string, nozzleId: string, tankId: string) => {
+    mapNozzleToTank(machineId, nozzleId, tankId);
   };
 
   const renderStep = () => {
@@ -218,6 +284,7 @@ export default function CompanySettings() {
                       ? Math.min(100, (tank.currentStock / tank.capacity) * 100) 
                       : 0;
                     const isLowStock = tank.currentStock <= tank.lowStockThreshold;
+                    const assignedNozzles = getNozzlesForTank(tank.id);
                     
                     return (
                       <Card key={tank.id} className={cn(
@@ -292,6 +359,17 @@ export default function CompanySettings() {
                                   />
                                 </div>
                               </div>
+
+                              {/* Connected Nozzles Badge */}
+                              {assignedNozzles.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {assignedNozzles.map((nozzle) => (
+                                    <Badge key={nozzle.id} variant="secondary" className="text-xs">
+                                      {nozzle.machineName} → {nozzle.label}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
 
                               <div className="space-y-1">
                                 <div className="flex justify-between text-xs text-muted-foreground">
@@ -397,6 +475,11 @@ export default function CompanySettings() {
                                   className="w-16 h-7 text-sm"
                                 />
                                 <span className="text-xs text-muted-foreground">{nozzle.fuelType}</span>
+                                {nozzle.tankId && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Mapped
+                                  </Badge>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -415,58 +498,99 @@ export default function CompanySettings() {
                 </div>
               </TabsContent>
 
-              {/* Tab C: Mapping Matrix */}
+              {/* Tab C: Mapping Matrix - With Strict Rules */}
               <TabsContent value="mapping" className="space-y-4 mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Map each nozzle to its fuel source tank. Only compatible tanks (same fuel type) are shown.
-                </p>
+                <div className="flex items-start gap-2 p-3 bg-info/10 border border-info/30 rounded-lg">
+                  <AlertCircle className="w-5 h-5 text-info shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-info">Mapping Rules:</p>
+                    <ul className="text-muted-foreground mt-1 space-y-1">
+                      <li>• Nozzles can only be assigned to tanks with matching fuel type</li>
+                      <li>• Each nozzle can only be connected to ONE tank at a time</li>
+                      <li>• To reassign a nozzle, first remove it from its current tank</li>
+                    </ul>
+                  </div>
+                </div>
 
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="space-y-3">
-                      {machines.flatMap((machine) =>
-                        machine.nozzles.map((nozzle) => {
-                          const compatibleTanks = tanks.filter((t) => t.fuelType === nozzle.fuelType);
-                          
-                          return (
-                            <div
-                              key={nozzle.id}
-                              className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg"
-                            >
-                              <div className="flex items-center gap-2 min-w-[180px]">
-                                <span className={cn(
-                                  "w-3 h-3 rounded-full",
-                                  FUEL_TYPE_INFO[nozzle.fuelType].color
-                                )} />
-                                <span className="font-medium">{machine.name}</span>
-                                <span className="text-muted-foreground">→</span>
-                                <span className="font-mono">{nozzle.label}</span>
-                              </div>
-                              
-                              <span className="text-muted-foreground text-sm">draws from</span>
-                              
-                              <Select
-                                value={nozzle.tankId || ''}
-                                onValueChange={(tankId) => mapNozzleToTank(machine.id, nozzle.id, tankId)}
-                              >
-                                <SelectTrigger className="w-52">
-                                  <SelectValue placeholder="Select Tank" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {compatibleTanks.map((tank) => (
-                                    <SelectItem key={tank.id} value={tank.id}>
-                                      {tank.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                {tanks.map((tank) => {
+                  const assignedNozzles = getNozzlesForTank(tank.id);
+                  const availableNozzles = getAvailableNozzlesForTank(tank.id, tank.fuelType)
+                    .filter(n => !assignedNozzles.some(an => an.id === n.id));
+
+                  return (
+                    <Card key={tank.id}>
+                      <CardHeader className="py-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("w-3 h-3 rounded-full", FUEL_TYPE_INFO[tank.fuelType].color)} />
+                            <CardTitle className="text-base">{tank.name}</CardTitle>
+                            <Badge variant="outline">{tank.fuelType}</Badge>
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {assignedNozzles.length} nozzle(s) connected
+                          </span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        {/* Assigned Nozzles */}
+                        {assignedNozzles.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-xs text-muted-foreground mb-2">Connected Nozzles:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {assignedNozzles.map((nozzle) => (
+                                <div
+                                  key={nozzle.id}
+                                  className="flex items-center gap-2 px-3 py-2 bg-success/10 border border-success/30 rounded-lg"
+                                >
+                                  <span className={cn("w-2 h-2 rounded-full", FUEL_TYPE_INFO[tank.fuelType].color)} />
+                                  <span className="text-sm font-medium">{nozzle.machineName}</span>
+                                  <span className="text-muted-foreground">→</span>
+                                  <span className="font-mono text-sm">{nozzle.label}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 ml-1"
+                                    onClick={() => handleRemoveNozzleFromTank(nozzle.machineId, nozzle.id)}
+                                  >
+                                    <Trash2 className="w-3 h-3 text-destructive" />
+                                  </Button>
+                                </div>
+                              ))}
                             </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                          </div>
+                        )}
+
+                        {/* Available Nozzles to Add */}
+                        {availableNozzles.length > 0 ? (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-2">Available {tank.fuelType} Nozzles:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {availableNozzles.map((nozzle) => (
+                                <Button
+                                  key={nozzle.id}
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleAssignNozzleToTank(nozzle.machineId, nozzle.id, tank.id)}
+                                  className="gap-2"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  {nozzle.machineName} → {nozzle.label}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            {assignedNozzles.length === 0 
+                              ? `No ${tank.fuelType} nozzles available. Create nozzles in the Machines tab first.`
+                              : `All ${tank.fuelType} nozzles are assigned.`
+                            }
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </TabsContent>
             </Tabs>
           </div>
