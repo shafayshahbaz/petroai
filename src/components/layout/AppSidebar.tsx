@@ -7,7 +7,8 @@ import {
   Menu,
   X,
   BookOpen,
-  Users
+  Users,
+  Truck
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/button';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/purchase', icon: Truck, label: 'Purchase' },
   { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
   { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
   { to: '/ledger', icon: BookOpen, label: 'Ledger' },
