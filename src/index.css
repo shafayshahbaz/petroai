@@ -263,10 +263,15 @@
     padding: 2px 4px !important;
   }
 
-  /* Page setup - Single A4 page */
+  /* Page setup - A4 Landscape for wider tables */
   @page {
-    size: A4 portrait;
+    size: A4 landscape;
     margin: 0;
+  }
+
+  /* Credit sales in red for print */
+  .text-red-600 {
+    color: #dc2626 !important;
   }
 }
 
