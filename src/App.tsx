@@ -12,6 +12,9 @@ import StockPurchases from "./pages/StockPurchases";
 import Stock from "./pages/Stock";
 import SalesByPerson from "./pages/SalesByPerson";
 import TotalSales from "./pages/TotalSales";
+import StaffSalary from "./pages/StaffSalary";
+import Debtors from "./pages/Debtors";
+import Expenses from "./pages/Expenses";
 import NotFound from "./pages/NotFound";
 import { usePetrolPumpStore } from "./store/petrol-pump-store";
 
@@ -45,6 +48,9 @@ function AppRoutes() {
       <Route path="/total-sales" element={<TotalSales />} />
       <Route path="/stock-purchases" element={<StockPurchases />} />
       <Route path="/stock" element={<Stock />} />
+      <Route path="/staff-salary" element={<StaffSalary />} />
+      <Route path="/debtors" element={<Debtors />} />
+      <Route path="/expenses" element={<Expenses />} />
       <Route path="/settings" element={<CompanySettings />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -21,7 +21,11 @@ import {
   DailyTotals,
   Staff,
   ShiftEntry,
-  ShiftNozzleReading
+  ShiftNozzleReading,
+  AttendanceRecord,
+  Debtor,
+  DebtorTransaction,
+  OfficeExpense
 } from '@/types/petrol-pump';
 
 interface PetrolPumpState {
@@ -35,6 +39,14 @@ interface PetrolPumpState {
   // Staff & Shift Entries
   staff: Staff[];
   shiftEntries: ShiftEntry[];
+  attendance: AttendanceRecord[];
+  
+  // Debtors/Credit
+  debtors: Debtor[];
+  debtorTransactions: DebtorTransaction[];
+  
+  // Office Expenses
+  officeExpenses: OfficeExpense[];
   
   // Legacy tank stocks (for backwards compatibility)
   tankStocks: TankStock[];
@@ -112,9 +124,26 @@ interface PetrolPumpState {
   getAllNozzles: () => Array<MachineNozzle & { machineId: string; machineName: string }>;
   
   // Staff Actions
-  addStaff: (name: string) => void;
+  addStaff: (name: string, monthlySalary?: number, designation?: string) => void;
   updateStaff: (id: string, data: Partial<Staff>) => void;
   deleteStaff: (id: string) => void;
+  
+  // Attendance Actions
+  setAttendance: (staffId: string, date: string, status: 'present' | 'absent' | 'half-day') => void;
+  getAttendance: (staffId: string, month: number, year: number) => AttendanceRecord[];
+  getStaffSalaryAdvances: (staffId: string, month: number, year: number) => number;
+  
+  // Debtor Actions
+  addDebtor: (name: string, phone?: string) => void;
+  updateDebtor: (id: string, data: Partial<Debtor>) => void;
+  deleteDebtor: (id: string) => void;
+  addDebtorTransaction: (transaction: Omit<DebtorTransaction, 'id' | 'createdAt'>) => void;
+  getDebtorBalance: (debtorId: string) => number;
+  
+  // Office Expense Actions
+  addOfficeExpense: (expense: Omit<OfficeExpense, 'id' | 'createdAt'>) => void;
+  updateOfficeExpense: (id: string, data: Partial<OfficeExpense>) => void;
+  deleteOfficeExpense: (id: string) => void;
   
   // Shift Entry Actions
   addShiftEntry: (entry: Omit<ShiftEntry, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -233,6 +262,10 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
       machines: defaultMachines,
       staff: [],
       shiftEntries: [],
+      attendance: [],
+      debtors: [],
+      debtorTransactions: [],
+      officeExpenses: [],
       tankStocks: defaultTankStocks,
       initialNozzleReadings: {},
       initialCashBalance: 0,
@@ -862,10 +895,12 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
       },
 
       // Staff Management
-      addStaff: (name) => {
+      addStaff: (name, monthlySalary = 0, designation = '') => {
         const newStaff: Staff = {
           id: generateId(),
           name,
+          monthlySalary,
+          designation,
           isActive: true,
           createdAt: new Date().toISOString(),
         };
@@ -974,6 +1009,131 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         }
 
         return readings;
+      },
+
+      // Attendance Management
+      setAttendance: (staffId, date, status) => {
+        set((state) => {
+          const existingIndex = state.attendance.findIndex(
+            (a) => a.staffId === staffId && a.date === date
+          );
+          
+          if (existingIndex >= 0) {
+            return {
+              attendance: state.attendance.map((a, i) =>
+                i === existingIndex ? { ...a, status } : a
+              ),
+            };
+          }
+          
+          return {
+            attendance: [
+              ...state.attendance,
+              { id: generateId(), staffId, date, status },
+            ],
+          };
+        });
+      },
+
+      getAttendance: (staffId, month, year) => {
+        const { attendance } = get();
+        return attendance.filter((a) => {
+          const d = new Date(a.date);
+          return a.staffId === staffId && d.getMonth() === month && d.getFullYear() === year;
+        });
+      },
+
+      getStaffSalaryAdvances: (staffId, month, year) => {
+        const { shiftEntries } = get();
+        return shiftEntries
+          .filter((e) => {
+            const d = new Date(e.businessDate);
+            return e.staffId === staffId && d.getMonth() === month && d.getFullYear() === year;
+          })
+          .reduce((sum, e) => sum + (e.salaryAdvance || 0), 0);
+      },
+
+      // Debtor Management
+      addDebtor: (name, phone) => {
+        const newDebtor: Debtor = {
+          id: generateId(),
+          name,
+          phone,
+          totalDue: 0,
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          debtors: [...state.debtors, newDebtor],
+        }));
+      },
+
+      updateDebtor: (id, data) => {
+        set((state) => ({
+          debtors: state.debtors.map((d) => (d.id === id ? { ...d, ...data } : d)),
+        }));
+      },
+
+      deleteDebtor: (id) => {
+        set((state) => ({
+          debtors: state.debtors.filter((d) => d.id !== id),
+          debtorTransactions: state.debtorTransactions.filter((t) => t.debtorId !== id),
+        }));
+      },
+
+      addDebtorTransaction: (transaction) => {
+        const newTransaction: DebtorTransaction = {
+          ...transaction,
+          id: generateId(),
+          createdAt: new Date().toISOString(),
+        };
+        
+        set((state) => {
+          // Update debtor's total due
+          const updatedDebtors = state.debtors.map((d) => {
+            if (d.id === transaction.debtorId) {
+              const change = transaction.type === 'credit' ? transaction.amount : -transaction.amount;
+              return { ...d, totalDue: Math.max(0, d.totalDue + change) };
+            }
+            return d;
+          });
+          
+          return {
+            debtorTransactions: [...state.debtorTransactions, newTransaction],
+            debtors: updatedDebtors,
+          };
+        });
+      },
+
+      getDebtorBalance: (debtorId) => {
+        const { debtors } = get();
+        const debtor = debtors.find((d) => d.id === debtorId);
+        return debtor?.totalDue || 0;
+      },
+
+      // Office Expense Management
+      addOfficeExpense: (expense) => {
+        const newExpense: OfficeExpense = {
+          ...expense,
+          id: generateId(),
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          officeExpenses: [...state.officeExpenses, newExpense],
+        }));
+      },
+
+      updateOfficeExpense: (id, data) => {
+        set((state) => ({
+          officeExpenses: state.officeExpenses.map((e) =>
+            e.id === id ? { ...e, ...data } : e
+          ),
+        }));
+      },
+
+      deleteOfficeExpense: (id) => {
+        set((state) => ({
+          officeExpenses: state.officeExpenses.filter((e) => e.id !== id),
+        }));
       },
     }),
     {
