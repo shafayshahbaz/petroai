@@ -36,15 +36,15 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
   };
 
   return (
-    <div className="daily-report-sheet font-mono text-sm p-4 bg-white text-black">
+    <div className="daily-report-sheet font-mono p-4 bg-white text-black" style={{ fontSize: '11px' }}>
       {/* Header */}
-      <div className="text-center mb-3 border-b-2 border-black pb-2">
-        <h1 className="text-xl font-bold tracking-wide">KGN FUEL CENTRE 2025-26</h1>
-        <p className="text-sm">{format(parseISO(entry.date), 'dd-MM-yyyy')} {entry.shiftName && `| Shift: ${entry.shiftName}`}</p>
+      <div className="text-center mb-2 border-b-2 border-black pb-1">
+        <h1 className="text-lg font-bold tracking-wide">KGN FUEL CENTRE 2025-26</h1>
+        <p style={{ fontSize: '10px' }}>{format(parseISO(entry.date), 'dd-MM-yyyy')} {entry.shiftName && `| Shift: ${entry.shiftName}`}</p>
       </div>
 
-      {/* Fuel Sales Tables - Compact Horizontal Layout */}
-      <div className="grid grid-cols-3 gap-2 mb-4 text-xs">
+      {/* Fuel Sales Tables - Stacked Layout for Print Clarity */}
+      <div className="mb-3" style={{ fontSize: '10px' }}>
         {(['MS', 'POWER', 'HSD'] as FuelType[]).map((fuelType) => {
           const nozzles = groupedNozzles[fuelType];
           const labels = fuelLabels[fuelType];
@@ -53,44 +53,30 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
           const netLiters = totalLiters - testing;
 
           return (
-            <div key={fuelType} className="border border-black p-1">
-              <div className="text-center font-bold border-b border-black pb-0.5 mb-1 text-sm">
-                {fuelType}
+            <div key={fuelType} className="border border-black mb-1 p-1">
+              <div className="flex items-center justify-between border-b border-black pb-0.5 mb-1">
+                <span className="font-bold text-sm">{fuelType}</span>
+                <span className="font-bold">Net: {formatNumber(netLiters, 2)} L</span>
               </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr>
-                    <th className="text-left w-16"></th>
-                    {labels.slice(0, nozzles.length).map((label) => (
-                      <th key={label} className="text-right px-0.5 font-bold">{label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="py-0.5">Open</td>
-                    {nozzles.map((nozzle, idx) => (
-                      <td key={idx} className="text-right px-0.5">{formatNumber(nozzle.openingReading, 2)}</td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="py-0.5">Close</td>
-                    {nozzles.map((nozzle, idx) => (
-                      <td key={idx} className="text-right px-0.5">{formatNumber(nozzle.closingReading, 2)}</td>
-                    ))}
-                  </tr>
-                  <tr className="font-bold border-t border-black">
-                    <td className="py-0.5">Sales</td>
-                    {nozzles.map((nozzle, idx) => (
-                      <td key={idx} className="text-right px-0.5">
-                        {formatNumber(Math.max(0, nozzle.closingReading - nozzle.openingReading), 2)}
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-              <div className="text-right text-xs font-bold border-t border-black pt-0.5 mt-1">
-                Net: {formatNumber(netLiters, 2)} L
+              <div className="grid" style={{ gridTemplateColumns: `40px repeat(${nozzles.length}, 1fr)` }}>
+                <div></div>
+                {labels.slice(0, nozzles.length).map((label) => (
+                  <div key={label} className="text-center font-bold">{label}</div>
+                ))}
+                <div>Open</div>
+                {nozzles.map((nozzle, idx) => (
+                  <div key={idx} className="text-center">{formatNumber(nozzle.openingReading, 0)}</div>
+                ))}
+                <div>Close</div>
+                {nozzles.map((nozzle, idx) => (
+                  <div key={idx} className="text-center">{formatNumber(nozzle.closingReading, 0)}</div>
+                ))}
+                <div className="font-bold">Sale</div>
+                {nozzles.map((nozzle, idx) => (
+                  <div key={idx} className="text-center font-bold">
+                    {formatNumber(Math.max(0, nozzle.closingReading - nozzle.openingReading), 0)}
+                  </div>
+                ))}
               </div>
             </div>
           );
@@ -98,11 +84,11 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
       </div>
 
       {/* T-FORMAT: Two Column Layout */}
-      <div className="t-format-container grid grid-cols-2 gap-3 border-t-2 border-black pt-2">
+      <div className="t-format-container grid grid-cols-2 gap-2 border-t-2 border-black pt-2" style={{ fontSize: '10px' }}>
         {/* Left Column - INFLOWS */}
         <div className="inflow-column border-r border-black pr-2">
-          <h3 className="font-bold text-center mb-1 border-b border-black pb-0.5 text-sm">INFLOWS</h3>
-          <div className="space-y-0.5 text-xs">
+          <h3 className="font-bold text-center mb-1 border-b border-black pb-0.5" style={{ fontSize: '12px' }}>INFLOWS</h3>
+          <div className="space-y-0.5">
             <div className="flex justify-between">
               <span>Opening Cash</span>
               <span>{formatCurrency(entry.openingBalance || 0)}</span>
@@ -131,7 +117,7 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
                 <span>{formatCurrency(income.amount)}</span>
               </div>
             ))}
-            <div className="flex justify-between font-bold border-t border-black pt-1 mt-1 text-sm">
+            <div className="flex justify-between font-bold border-t border-black pt-1 mt-1" style={{ fontSize: '11px' }}>
               <span>TOTAL INFLOW</span>
               <span>{formatCurrency(totals.grandTotalIncome)}</span>
             </div>
@@ -140,8 +126,8 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
 
         {/* Right Column - OUTFLOWS */}
         <div className="outflow-column pl-2">
-          <h3 className="font-bold text-center mb-1 border-b border-black pb-0.5 text-sm">OUTFLOWS</h3>
-          <div className="space-y-0.5 text-xs">
+          <h3 className="font-bold text-center mb-1 border-b border-black pb-0.5" style={{ fontSize: '12px' }}>OUTFLOWS</h3>
+          <div className="space-y-0.5">
             {entry.expenses?.map((expense) => (
               <div key={expense.id} className="flex justify-between">
                 <span>{expense.description}</span>
@@ -166,11 +152,11 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
               <span>Sub Total</span>
               <span>{formatCurrency(totals.totalExpenses)}</span>
             </div>
-            <div className="flex justify-between font-bold bg-gray-200 p-1 mt-1 text-sm">
+            <div className="flex justify-between font-bold bg-gray-200 p-1 mt-1" style={{ fontSize: '11px' }}>
               <span>CLOSING CASH</span>
               <span>{formatCurrency(totals.cashInHand)}</span>
             </div>
-            <div className="flex justify-between font-bold border-t border-black pt-1 mt-1 text-sm">
+            <div className="flex justify-between font-bold border-t border-black pt-1 mt-1" style={{ fontSize: '11px' }}>
               <span>TOTAL OUTFLOW</span>
               <span>{formatCurrency(totals.grandTotalIncome)}</span>
             </div>
