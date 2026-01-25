@@ -10,7 +10,6 @@ import SalesReport from "./pages/SalesReport";
 import CompanySettings from "./pages/CompanySettings";
 import StockPurchases from "./pages/StockPurchases";
 import Stock from "./pages/Stock";
-import SalesByPerson from "./pages/SalesByPerson";
 import TotalSales from "./pages/TotalSales";
 import StaffSalary from "./pages/StaffSalary";
 import Debtors from "./pages/Debtors";
@@ -44,7 +43,6 @@ function AppRoutes() {
       <Route path="/" element={<Dashboard />} />
       <Route path="/daily-entry" element={<DailyEntry />} />
       <Route path="/sales-report" element={<SalesReport />} />
-      <Route path="/sales-by-person" element={<SalesByPerson />} />
       <Route path="/total-sales" element={<TotalSales />} />
       <Route path="/stock-purchases" element={<StockPurchases />} />
       <Route path="/stock" element={<Stock />} />
