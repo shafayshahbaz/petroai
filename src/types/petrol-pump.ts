@@ -121,7 +121,50 @@ export interface Staff {
   id: string;
   name: string;
   phone?: string;
+  designation?: string;
+  monthlySalary: number;
   isActive: boolean;
+  createdAt: string;
+}
+
+// Staff attendance record
+export interface AttendanceRecord {
+  id: string;
+  staffId: string;
+  date: string;
+  status: 'present' | 'absent' | 'half-day';
+}
+
+// Debtor/Credit customer
+export interface Debtor {
+  id: string;
+  name: string;
+  phone?: string;
+  totalDue: number;
+  createdAt: string;
+}
+
+// Debtor transaction (credit given or payment received)
+export interface DebtorTransaction {
+  id: string;
+  debtorId: string;
+  date: string;
+  type: 'credit' | 'payment';
+  amount: number;
+  description: string;
+  // Link to shift entry if auto-created
+  shiftEntryId?: string;
+  staffName?: string;
+  createdAt: string;
+}
+
+// Office/Manager expense (separate from shift expenses)
+export interface OfficeExpense {
+  id: string;
+  date: string;
+  category: string;
+  description: string;
+  amount: number;
   createdAt: string;
 }
 

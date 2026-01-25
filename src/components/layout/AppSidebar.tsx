@@ -9,7 +9,10 @@ import {
   Package,
   Settings,
   Users,
-  Calculator
+  Calculator,
+  BadgeCheck,
+  BookUser,
+  Wallet
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -24,6 +27,9 @@ const navItems = [
   { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
   { to: '/stock-purchases', icon: Package, label: 'Purchases' },
   { to: '/stock', icon: Fuel, label: 'Stock & Tanks' },
+  { to: '/expenses', icon: Wallet, label: 'Expenses' },
+  { to: '/staff-salary', icon: BadgeCheck, label: 'Staff & Salary' },
+  { to: '/debtors', icon: BookUser, label: 'Debtors' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

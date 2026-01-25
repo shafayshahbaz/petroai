@@ -138,7 +138,7 @@ export default function SalesByPerson() {
       toast({ title: 'Error', description: 'Please enter staff name', variant: 'destructive' });
       return;
     }
-    addStaff(newStaffName.trim());
+    addStaff(newStaffName.trim(), 0, '');
     setNewStaffName('');
     setIsStaffDialogOpen(false);
     toast({ title: 'Staff Added', description: `${newStaffName} has been added.` });
