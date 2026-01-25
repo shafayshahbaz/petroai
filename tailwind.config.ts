@@ -76,6 +76,12 @@ export default {
           "4": "hsl(var(--chart-4))",
           "5": "hsl(var(--chart-5))",
         },
+        // Fuel type colors - Global theme tokens
+        fuel: {
+          ms: "hsl(var(--color-ms))",
+          hsd: "hsl(var(--color-hsd))",
+          power: "hsl(var(--color-power))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

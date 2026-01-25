@@ -52,6 +52,11 @@
 
     --radius: 0.5rem;
 
+    /* FUEL TYPE COLORS - GLOBAL VARIABLES */
+    --color-ms: 24 95% 53%; /* #F97316 - Bright Orange for Petrol */
+    --color-hsd: 217 91% 60%; /* #3B82F6 - Royal Blue for Diesel */
+    --color-power: 330 81% 60%; /* #EC4899 - Hot Pink for Premium */
+
     /* Sidebar - deep navy */
     --sidebar-background: 220 60% 18%;
     --sidebar-foreground: 210 20% 90%;
@@ -107,6 +112,11 @@
     --border: 220 25% 22%;
     --input: 220 25% 22%;
     --ring: 38 92% 50%;
+
+    /* FUEL TYPE COLORS - DARK MODE */
+    --color-ms: 24 95% 53%;
+    --color-hsd: 217 91% 60%;
+    --color-power: 330 81% 60%;
 
     --sidebar-background: 220 35% 10%;
     --sidebar-foreground: 210 20% 90%;
