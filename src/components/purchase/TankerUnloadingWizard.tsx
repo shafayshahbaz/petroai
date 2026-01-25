@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { StepIndicator } from './StepIndicator';
 import { TruckVisual } from './TruckVisual';
 import { DensityCalculator } from './DensityCalculator';
 import { usePurchaseStore } from '@/store/purchase-store';
-import { TruckChamber, DensityCheck, StockVerification } from '@/types/purchase';
+import { TruckChamber, DensityCheck, StockVerification, calculateCorrectedDensity } from '@/types/purchase';
 import { FuelType } from '@/types/petrol-pump';
 import { formatAmount, formatLiters } from '@/lib/format';
 import { ArrowLeft, ArrowRight, Check, AlertTriangle, Truck } from 'lucide-react';
@@ -38,10 +38,15 @@ export function TankerUnloadingWizard() {
 
   const [currentStep, setCurrentStep] = useState(1);
   
+  // Scroll to top when step changes
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentStep]);
+  
   // Step 1: Invoice Header
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [supplierName, setSupplierName] = useState('');
+  const [supplierPlace, setSupplierPlace] = useState('');
   const [totalInvoiceValue, setTotalInvoiceValue] = useState<number>(0);
   
   // Step 2: Truck Config
@@ -125,10 +130,19 @@ export function TankerUnloadingWizard() {
     }));
   }, []);
 
+  // Check if all chamber dip differences are within ±3
+  const allDipsWithinTolerance = chambers.every(c => {
+    const diff = c.physicalDip - c.challanDip;
+    return Math.abs(diff) <= 3;
+  });
+
+  // Compute overall density status based on chamber dips
+  const computedDensityStatus: 'OK' | 'FAIL' = allDipsWithinTolerance ? 'OK' : 'FAIL';
+
   const canProceed = (): boolean => {
     switch (currentStep) {
       case 1:
-        return !!invoiceNumber && !!invoiceDate && !!supplierName && totalInvoiceValue > 0;
+        return !!invoiceNumber && !!invoiceDate && !!supplierPlace && totalInvoiceValue > 0;
       case 2:
         return numberOfChambers > 0 && chambers.every(c => c.fuelType && c.capacity > 0);
       case 3:
@@ -155,14 +169,19 @@ export function TankerUnloadingWizard() {
   };
 
   const handleFinalize = () => {
-    // Save the purchase entry
+    // Save the purchase entry with computed density status
+    const finalDensityCheck: DensityCheck = {
+      ...densityCheck,
+      status: computedDensityStatus,
+    };
+    
     const purchase = savePurchase({
       invoiceNumber,
       invoiceDate,
-      supplierName,
+      supplierName: supplierPlace, // Using supplierPlace now
       totalInvoiceValue,
       chambers,
-      densityCheck,
+      densityCheck: finalDensityCheck,
       stockVerifications,
       status: 'completed',
     });
@@ -227,11 +246,11 @@ export function TankerUnloadingWizard() {
                 </div>
                 
                 <div className="space-y-2 md:col-span-2">
-                  <Label className="text-base">Supplier Name *</Label>
+                  <Label className="text-base">Supplier Place (Depot) *</Label>
                   <Input
-                    value={supplierName}
-                    onChange={(e) => setSupplierName(e.target.value)}
-                    placeholder="e.g., Indian Oil Corporation"
+                    value={supplierPlace}
+                    onChange={(e) => setSupplierPlace(e.target.value)}
+                    placeholder="e.g., Barauni"
                     className="h-14 text-lg"
                   />
                 </div>
@@ -334,11 +353,36 @@ export function TankerUnloadingWizard() {
                 <p className="text-muted-foreground">Verify chamber dips and fuel density</p>
               </div>
 
+              {/* Overall Status Banner */}
+              <div className={cn(
+                "p-4 rounded-xl border-2 text-center",
+                computedDensityStatus === 'OK' 
+                  ? "bg-green-500/10 border-green-500" 
+                  : "bg-destructive/10 border-destructive"
+              )}>
+                <div className="flex items-center justify-center gap-3">
+                  {computedDensityStatus === 'OK' ? (
+                    <Check className="w-8 h-8 text-green-500" />
+                  ) : (
+                    <AlertTriangle className="w-8 h-8 text-destructive animate-pulse" />
+                  )}
+                  <span className={cn(
+                    "text-2xl font-bold",
+                    computedDensityStatus === 'OK' ? "text-green-500" : "text-destructive"
+                  )}>
+                    {computedDensityStatus === 'OK' ? 'QUALITY OK' : 'DIP VARIANCE FAIL'}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  All chamber differences must be within ±3 cm
+                </p>
+              </div>
+
               {/* Chamber Dip Table */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Chamber Dip Readings</CardTitle>
-                  <CardDescription>Compare challan dip with physical measurement</CardDescription>
+                  <CardDescription>Compare challan dip with physical measurement (tolerance: ±3 cm)</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -349,11 +393,13 @@ export function TankerUnloadingWizard() {
                         <TableHead>Challan Dip (cm)</TableHead>
                         <TableHead>Physical Dip (cm)</TableHead>
                         <TableHead>Difference</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {chambers.map((chamber, index) => {
                         const diff = chamber.physicalDip - chamber.challanDip;
+                        const isWithinTolerance = Math.abs(diff) <= 3;
                         return (
                           <TableRow key={chamber.id}>
                             <TableCell className="font-medium">C{index + 1}</TableCell>
@@ -379,9 +425,19 @@ export function TankerUnloadingWizard() {
                             <TableCell>
                               <span className={cn(
                                 "font-bold text-lg",
-                                diff === 0 ? "text-muted-foreground" : diff > 0 ? "text-green-500" : "text-destructive"
+                                isWithinTolerance ? "text-green-500" : "text-destructive"
                               )}>
                                 {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <span className={cn(
+                                "px-2 py-1 rounded text-xs font-bold",
+                                isWithinTolerance 
+                                  ? "bg-green-500/20 text-green-600" 
+                                  : "bg-destructive/20 text-destructive"
+                              )}>
+                                {isWithinTolerance ? 'OK' : 'FAIL'}
                               </span>
                             </TableCell>
                           </TableRow>
@@ -392,7 +448,7 @@ export function TankerUnloadingWizard() {
                 </CardContent>
               </Card>
 
-              {/* Density Calculator */}
+              {/* Density Calculator - Simplified */}
               <DensityCalculator
                 densityCheck={densityCheck}
                 onChange={setDensityCheck}
@@ -541,20 +597,20 @@ export function TankerUnloadingWizard() {
                       <p className="text-lg font-bold">{invoiceNumber}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Supplier</p>
-                      <p className="text-lg font-bold">{supplierName}</p>
+                      <p className="text-sm text-muted-foreground">Depot</p>
+                      <p className="text-lg font-bold">{supplierPlace}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Invoice Value</p>
                       <p className="text-lg font-bold">₹{formatAmount(totalInvoiceValue)}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Density Status</p>
+                      <p className="text-sm text-muted-foreground">Quality Status</p>
                       <p className={cn(
                         "text-lg font-bold",
-                        densityCheck.status === 'OK' ? "text-green-500" : "text-destructive"
+                        computedDensityStatus === 'OK' ? "text-green-500" : "text-destructive"
                       )}>
-                        {densityCheck.status}
+                        {computedDensityStatus}
                       </p>
                     </div>
                   </div>
