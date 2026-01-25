@@ -18,7 +18,8 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
   { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
-  { to: '/stock-purchases', icon: Package, label: 'Stock & Purchases' },
+  { to: '/stock-purchases', icon: Package, label: 'Purchases' },
+  { to: '/stock', icon: Fuel, label: 'Stock & Tanks' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
