@@ -12,10 +12,17 @@ import { FuelType } from '@/types/petrol-pump';
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
+// Tank-Nozzle connection
+export interface TankNozzleConnection {
+  nozzleId: string;
+  tankId: string;
+}
+
 interface PurchaseState {
   tanks: UndergroundTank[];
   purchases: PurchaseEntry[];
-  lastChamberCapacity: number; // Remember last used chamber capacity
+  lastChamberCapacity: number;
+  tankNozzleConnections: TankNozzleConnection[];
   
   // Tank actions
   initializeTanks: () => void;
@@ -25,11 +32,19 @@ interface PurchaseState {
   updateTankStock: (id: string, newStock: number) => void;
   getTanksByFuelType: (fuelType: FuelType) => UndergroundTank[];
   
+  // Tank-Nozzle connection actions
+  connectNozzleToTank: (nozzleId: string, tankId: string) => void;
+  disconnectNozzle: (nozzleId: string) => void;
+  getNozzlesForTank: (tankId: string) => string[];
+  getTankForNozzle: (nozzleId: string) => string | null;
+  deductFromTankByNozzle: (nozzleId: string, liters: number) => void;
+  
   // Purchase actions
   savePurchase: (purchase: Omit<PurchaseEntry, 'id' | 'createdAt' | 'updatedAt'>) => PurchaseEntry;
   updatePurchase: (id: string, data: Partial<PurchaseEntry>) => void;
   deletePurchase: (id: string) => void;
   getPurchases: () => PurchaseEntry[];
+  getPurchaseById: (id: string) => PurchaseEntry | undefined;
   setLastChamberCapacity: (capacity: number) => void;
   
   // Finalize unloading - updates tank stock
@@ -41,8 +56,8 @@ export const usePurchaseStore = create<PurchaseState>()(
     (set, get) => ({
       tanks: [],
       purchases: [],
-      lastChamberCapacity: 3000, // Default 3000L
-
+      lastChamberCapacity: 3000,
+      tankNozzleConnections: [],
 
       initializeTanks: () => {
         const { tanks } = get();
@@ -100,6 +115,57 @@ export const usePurchaseStore = create<PurchaseState>()(
         return get().tanks.filter((t) => t.fuelType === fuelType);
       },
 
+      // Tank-Nozzle connection actions
+      connectNozzleToTank: (nozzleId, tankId) => {
+        set((state) => {
+          // Remove existing connection for this nozzle
+          const filteredConnections = state.tankNozzleConnections.filter(
+            (c) => c.nozzleId !== nozzleId
+          );
+          return {
+            tankNozzleConnections: [...filteredConnections, { nozzleId, tankId }],
+          };
+        });
+      },
+
+      disconnectNozzle: (nozzleId) => {
+        set((state) => ({
+          tankNozzleConnections: state.tankNozzleConnections.filter(
+            (c) => c.nozzleId !== nozzleId
+          ),
+        }));
+      },
+
+      getNozzlesForTank: (tankId) => {
+        return get().tankNozzleConnections
+          .filter((c) => c.tankId === tankId)
+          .map((c) => c.nozzleId);
+      },
+
+      getTankForNozzle: (nozzleId) => {
+        const connection = get().tankNozzleConnections.find(
+          (c) => c.nozzleId === nozzleId
+        );
+        return connection?.tankId || null;
+      },
+
+      deductFromTankByNozzle: (nozzleId, liters) => {
+        const tankId = get().getTankForNozzle(nozzleId);
+        if (!tankId) return;
+        
+        set((state) => ({
+          tanks: state.tanks.map((t) =>
+            t.id === tankId
+              ? { 
+                  ...t, 
+                  currentStock: Math.max(0, t.currentStock - liters), 
+                  updatedAt: new Date().toISOString() 
+                }
+              : t
+          ),
+        }));
+      },
+
       savePurchase: (purchaseData) => {
         const now = new Date().toISOString();
         const newPurchase: PurchaseEntry = {
@@ -130,6 +196,10 @@ export const usePurchaseStore = create<PurchaseState>()(
 
       getPurchases: () => {
         return get().purchases;
+      },
+
+      getPurchaseById: (id) => {
+        return get().purchases.find((p) => p.id === id);
       },
 
       setLastChamberCapacity: (capacity: number) => {
