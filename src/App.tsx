@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SubscriptionBanner } from "./components/SubscriptionBanner";
+import { MandatoryBackupModal } from "./components/backup/BackupManager";
 import { MainLayout } from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import DailyEntry from "./pages/DailyEntry";
@@ -15,6 +16,7 @@ import Debtors from "./pages/Debtors";
 import Purchase from "./pages/Purchase";
 import NewPurchase from "./pages/NewPurchase";
 import Stock from "./pages/Stock";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import AdminLogin from "./pages/AdminLogin";
@@ -140,6 +142,18 @@ const App = () => (
                   <SubscriptionBanner />
                   <MainLayout>
                     <Stock />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <SubscriptionBanner />
+                  <MandatoryBackupModal />
+                  <MainLayout>
+                    <Settings />
                   </MainLayout>
                 </ProtectedRoute>
               }

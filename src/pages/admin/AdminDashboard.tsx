@@ -43,8 +43,10 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showExtendDialog, setShowExtendDialog] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [extendDays, setExtendDays] = useState(30);
+  const [newAdminPassword, setNewAdminPassword] = useState('');
   
   // Create client form
   const [newClient, setNewClient] = useState({
@@ -209,6 +211,40 @@ export default function AdminDashboard() {
     }
   };
 
+  const changeAdminPassword = async () => {
+    if (!newAdminPassword || newAdminPassword.length < 8) {
+      toast({
+        title: 'Error',
+        description: 'Password must be at least 8 characters',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newAdminPassword,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Password Updated',
+        description: 'Your admin password has been changed successfully.',
+      });
+
+      setShowPasswordDialog(false);
+      setNewAdminPassword('');
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to change password',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getStatusBadge = (status: string, expiryDate: string) => {
     const isExpired = new Date(expiryDate) < new Date();
     
@@ -247,14 +283,55 @@ export default function AdminDashboard() {
               <p className="text-sm text-slate-400">Manage all pump clients</p>
             </div>
           </div>
-          <Button 
-            variant="ghost" 
-            className="text-slate-300 hover:text-white hover:bg-slate-700"
-            onClick={() => signOut().then(() => navigate('/admin'))}
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="text-slate-300 hover:text-white hover:bg-slate-700"
+                >
+                  <Key className="w-4 h-4 mr-2" />
+                  Change Password
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-slate-800 border-slate-700 text-white">
+                <DialogHeader>
+                  <DialogTitle>Change Admin Password</DialogTitle>
+                  <DialogDescription className="text-slate-400">
+                    Enter a new password for your admin account
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label>New Password</Label>
+                    <Input
+                      type="password"
+                      value={newAdminPassword}
+                      onChange={(e) => setNewAdminPassword(e.target.value)}
+                      placeholder="Minimum 8 characters"
+                      className="bg-slate-700 border-slate-600"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowPasswordDialog(false)} className="border-slate-600">
+                    Cancel
+                  </Button>
+                  <Button onClick={changeAdminPassword} className="bg-gradient-to-r from-amber-500 to-orange-600">
+                    Update Password
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Button 
+              variant="ghost" 
+              className="text-slate-300 hover:text-white hover:bg-slate-700"
+              onClick={() => signOut().then(() => navigate('/admin'))}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
