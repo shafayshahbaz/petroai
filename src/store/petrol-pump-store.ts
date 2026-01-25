@@ -309,12 +309,20 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         const { currentEntry, entries, debtors } = get();
         if (!currentEntry?.id) return;
 
+        // Normalize nozzle readings: if closing is empty (0) and opening has value, set closing = opening
+        const normalizedNozzles = (currentEntry.nozzles || []).map((n) => ({
+          ...n,
+          closingReading: n.closingReading === 0 && n.openingReading > 0 
+            ? n.openingReading 
+            : n.closingReading,
+        }));
+
         const completeEntry: DailyEntry = {
           id: currentEntry.id,
           date: currentEntry.date || new Date().toISOString().split('T')[0],
           shiftName: currentEntry.shiftName || '',
           fuelRates: currentEntry.fuelRates || DEFAULT_FUEL_RATES,
-          nozzles: currentEntry.nozzles || [],
+          nozzles: normalizedNozzles,
           lubeItems: currentEntry.lubeItems || [],
           expenses: currentEntry.expenses || [],
           incomes: currentEntry.incomes || [],
