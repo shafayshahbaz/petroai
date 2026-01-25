@@ -263,10 +263,22 @@
     padding: 2px 4px !important;
   }
 
-  /* Page setup - A4 Landscape for wider tables */
+  /* Page setup - A4 Portrait, single page */
   @page {
-    size: A4 landscape;
+    size: A4 portrait;
     margin: 0;
+  }
+
+  /* Ensure report fits on one page */
+  .daily-report-sheet {
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    padding: 8mm !important;
+    font-size: 8pt !important;
+    overflow: hidden !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
   }
 
   /* Credit sales in red for print */
