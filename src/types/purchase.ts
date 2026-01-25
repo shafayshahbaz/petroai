@@ -72,29 +72,23 @@ export interface UnloadingWizardState {
   stockVerifications: StockVerification[];
 }
 
-// ASTM D1250 Table 53B correction using K0 coefficients
-// Reference temperature is 15°C
+// Temperature correction to Standard Density at 15°C
+// For MS/Power (density < 800): coefficient = 0.875
+// For HSD (density >= 800): coefficient = 1.133
 export function calculateCorrectedDensity(observedDensity: number, temperature: number, _fuelType?: FuelType): number {
   const refTemp = 15;
   const tempDiff = temperature - refTemp;
   
-  // Determine K0 based on observed density (ASTM D1250 Table 53B)
-  // If density < 800: MS (Petrol) K0 = 346.4228
-  // If density >= 800: HSD (Diesel) K0 = 186.9696
-  const K0 = observedDensity < 800 ? 346.4228 : 186.9696;
+  // Determine coefficient based on observed density
+  // MS/Power: 0.875 per °C
+  // HSD: 1.133 per °C
+  const coefficient = observedDensity < 800 ? 0.875 : 1.133;
   
-  // Calculate thermal expansion coefficient alpha
-  // α = K0 / (density^2) per °C (simplified from ASTM polynomial)
-  const alpha = K0 / (observedDensity * observedDensity);
+  // Standard Density = Observed + ((Temp - 15) × coefficient)
+  const standardDensity = observedDensity + (tempDiff * coefficient);
   
-  // Volume Correction Factor (VCF) at reference temperature
-  const vcf = 1 - (alpha * tempDiff);
-  
-  // Standard density at 15°C = observed density / VCF
-  const standardDensity = observedDensity / vcf;
-  
-  // Return with high precision (2 decimal places)
-  return Math.round(standardDensity * 100) / 100;
+  // Return with 1 decimal place
+  return Math.round(standardDensity * 10) / 10;
 }
 
 // Default tanks for initial setup
