@@ -40,6 +40,23 @@ export interface IncomeItem {
   amount: number;
 }
 
+// Credit Sale item (for debtors)
+export interface CreditSaleItem {
+  id: string;
+  debtorId: string;
+  debtorName: string;
+  amount: number;
+}
+
+// Debtor
+export interface Debtor {
+  id: string;
+  name: string;
+  totalOutstanding: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Payment collection
 export interface PaymentCollection {
   upiCollection: number;
@@ -57,6 +74,7 @@ export interface DailyEntry {
   lubeItems: LubeItem[];
   expenses: ExpenseItem[];
   incomes: IncomeItem[];
+  creditSales: CreditSaleItem[];
   upiCollection: number;
   cashDeposit: number;
   openingBalance: number;
@@ -80,6 +98,7 @@ export interface DailyTotals {
   totalFuelAmount: number;
   totalLubeAmount: number;
   totalIncomes: number;
+  totalCreditSales: number;
   grandTotalIncome: number;
   totalExpenses: number;
   cashInHand: number;

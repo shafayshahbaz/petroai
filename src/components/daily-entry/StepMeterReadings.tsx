@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Lock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
@@ -32,7 +33,8 @@ function formatCurrency(amount: number): string {
 }
 
 export function StepMeterReadings() {
-  const { currentEntry, updateNozzle, updateTestingDeduction } = usePetrolPumpStore();
+  const { currentEntry, updateNozzle, updateTestingDeduction, isFirstEntry } = usePetrolPumpStore();
+  const isFirst = isFirstEntry();
 
   const groupedNozzles = useMemo(() => {
     if (!currentEntry?.nozzles) return { MS: [], HSD: [], POWER: [] };
@@ -111,7 +113,12 @@ export function StepMeterReadings() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2 px-2 text-sm font-medium text-muted-foreground">Nozzle</th>
-                  <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">Opening</th>
+                  <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">
+                    <span className="flex items-center justify-end gap-1">
+                      Opening
+                      {!isFirst && <Lock className="h-3 w-3" />}
+                    </span>
+                  </th>
                   <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">Closing</th>
                   <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">Sales (L)</th>
                 </tr>
@@ -135,7 +142,11 @@ export function StepMeterReadings() {
                           step="0.001"
                           value={nozzle.openingReading || ''}
                           onChange={(e) => handleReadingChange(nozzle.id, 'openingReading', e.target.value)}
-                          className="w-32 h-10 number-input text-right ml-auto"
+                          disabled={!isFirst}
+                          className={cn(
+                            "w-32 h-10 number-input text-right ml-auto",
+                            !isFirst && "bg-muted cursor-not-allowed"
+                          )}
                           placeholder="0.000"
                         />
                       </td>
@@ -196,6 +207,12 @@ export function StepMeterReadings() {
           </span>
         </div>
       </div>
+
+      {!isFirst && (
+        <p className="text-xs text-muted-foreground text-center">
+          Opening readings are locked and auto-filled from yesterday's closing readings.
+        </p>
+      )}
     </div>
   );
 }

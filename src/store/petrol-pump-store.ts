@@ -7,6 +7,8 @@ import {
   LubeItem, 
   ExpenseItem,
   IncomeItem,
+  CreditSaleItem,
+  Debtor,
   DEFAULT_FUEL_RATES,
   DEFAULT_NOZZLE_CONFIG,
   FuelType
@@ -14,6 +16,7 @@ import {
 
 interface PetrolPumpState {
   entries: DailyEntry[];
+  debtors: Debtor[];
   currentEntry: Partial<DailyEntry> | null;
   
   // Actions
@@ -29,6 +32,9 @@ interface PetrolPumpState {
   addIncome: (income: Omit<IncomeItem, 'id'>) => void;
   updateIncome: (id: string, income: Partial<IncomeItem>) => void;
   removeIncome: (id: string) => void;
+  addCreditSale: (creditSale: Omit<CreditSaleItem, 'id'>) => void;
+  updateCreditSale: (id: string, creditSale: Partial<CreditSaleItem>) => void;
+  removeCreditSale: (id: string) => void;
   updatePayments: (upiCollection: number, cashDeposit: number) => void;
   updateTestingDeduction: (fuelType: FuelType, amount: number) => void;
   updateOpeningBalance: (amount: number) => void;
@@ -38,6 +44,9 @@ interface PetrolPumpState {
   clearCurrentEntry: () => void;
   getLastClosingReadings: () => Record<string, number>;
   getLastCashInHand: () => number;
+  isFirstEntry: () => boolean;
+  addDebtor: (name: string) => Debtor;
+  getDebtors: () => Debtor[];
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -60,6 +69,7 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
   persist(
     (set, get) => ({
       entries: [],
+      debtors: [],
       currentEntry: null,
 
       createNewEntry: (date, shiftName) => {
@@ -76,6 +86,7 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
             lubeItems: [],
             expenses: [],
             incomes: [],
+            creditSales: [],
             upiCollection: 0,
             cashDeposit: 0,
             openingBalance: lastCashInHand,
@@ -223,6 +234,44 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         }));
       },
 
+      addCreditSale: (creditSale) => {
+        set((state) => ({
+          currentEntry: state.currentEntry
+            ? {
+                ...state.currentEntry,
+                creditSales: [
+                  ...(state.currentEntry.creditSales || []),
+                  { ...creditSale, id: generateId() },
+                ],
+              }
+            : null,
+        }));
+      },
+
+      updateCreditSale: (id, creditSale) => {
+        set((state) => ({
+          currentEntry: state.currentEntry
+            ? {
+                ...state.currentEntry,
+                creditSales: state.currentEntry.creditSales?.map((c) =>
+                  c.id === id ? { ...c, ...creditSale } : c
+                ),
+              }
+            : null,
+        }));
+      },
+
+      removeCreditSale: (id) => {
+        set((state) => ({
+          currentEntry: state.currentEntry
+            ? {
+                ...state.currentEntry,
+                creditSales: state.currentEntry.creditSales?.filter((c) => c.id !== id),
+              }
+            : null,
+        }));
+      },
+
       updatePayments: (upiCollection, cashDeposit) => {
         set((state) => ({
           currentEntry: state.currentEntry
@@ -254,7 +303,7 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
       },
 
       saveEntry: () => {
-        const { currentEntry, entries } = get();
+        const { currentEntry, entries, debtors } = get();
         if (!currentEntry?.id) return;
 
         const completeEntry: DailyEntry = {
@@ -266,6 +315,7 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
           lubeItems: currentEntry.lubeItems || [],
           expenses: currentEntry.expenses || [],
           incomes: currentEntry.incomes || [],
+          creditSales: currentEntry.creditSales || [],
           upiCollection: currentEntry.upiCollection || 0,
           cashDeposit: currentEntry.cashDeposit || 0,
           openingBalance: currentEntry.openingBalance || 0,
@@ -274,16 +324,31 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
           updatedAt: new Date().toISOString(),
         };
 
+        // Update debtor outstanding amounts
+        const updatedDebtors = [...debtors];
+        (currentEntry.creditSales || []).forEach((cs) => {
+          const debtorIndex = updatedDebtors.findIndex(d => d.id === cs.debtorId);
+          if (debtorIndex >= 0) {
+            updatedDebtors[debtorIndex] = {
+              ...updatedDebtors[debtorIndex],
+              totalOutstanding: updatedDebtors[debtorIndex].totalOutstanding + cs.amount,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+        });
+
         const existingIndex = entries.findIndex((e) => e.id === completeEntry.id);
         
         if (existingIndex >= 0) {
           set({
             entries: entries.map((e, i) => (i === existingIndex ? completeEntry : e)),
+            debtors: updatedDebtors,
             currentEntry: null,
           });
         } else {
           set({
             entries: [...entries, completeEntry],
+            debtors: updatedDebtors,
             currentEntry: null,
           });
         }
@@ -337,6 +402,31 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         const totals = calculateTotals(lastEntry);
         return totals.cashInHand;
       },
+
+      isFirstEntry: () => {
+        const { entries } = get();
+        return entries.length === 0;
+      },
+
+      addDebtor: (name) => {
+        const newDebtor: Debtor = {
+          id: generateId(),
+          name,
+          totalOutstanding: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        set((state) => ({
+          debtors: [...state.debtors, newDebtor],
+        }));
+        
+        return newDebtor;
+      },
+
+      getDebtors: () => {
+        return get().debtors;
+      },
     }),
     {
       name: 'petrol-pump-storage',
@@ -351,6 +441,7 @@ export function calculateTotals(entry: DailyEntry | Partial<DailyEntry>): {
   totalFuelAmount: number;
   totalLubeAmount: number;
   totalIncomes: number;
+  totalCreditSales: number;
   grandTotalIncome: number;
   totalExpenses: number;
   cashInHand: number;
@@ -379,8 +470,12 @@ export function calculateTotals(entry: DailyEntry | Partial<DailyEntry>): {
   const totalFuelAmount = fuelSales.MS.amount + fuelSales.HSD.amount + fuelSales.POWER.amount;
   const totalLubeAmount = (entry.lubeItems || []).reduce((sum, item) => sum + item.quantity * item.rate, 0);
   const totalIncomes = (entry.incomes || []).reduce((sum, item) => sum + item.amount, 0);
+  const totalCreditSales = (entry.creditSales || []).reduce((sum, item) => sum + item.amount, 0);
   const grandTotalIncome = totalFuelAmount + totalLubeAmount + totalIncomes + (entry.openingBalance || 0);
-  const totalExpenses = (entry.expenses || []).reduce((sum, item) => sum + item.amount, 0) + (entry.upiCollection || 0) + (entry.cashDeposit || 0);
+  const totalExpenses = (entry.expenses || []).reduce((sum, item) => sum + item.amount, 0) 
+    + (entry.upiCollection || 0) 
+    + (entry.cashDeposit || 0)
+    + totalCreditSales;
   const cashInHand = grandTotalIncome - totalExpenses;
 
   return {
@@ -389,6 +484,7 @@ export function calculateTotals(entry: DailyEntry | Partial<DailyEntry>): {
     totalFuelAmount,
     totalLubeAmount,
     totalIncomes,
+    totalCreditSales,
     grandTotalIncome,
     totalExpenses,
     cashInHand,
