@@ -1,28 +1,25 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
+  FileText, 
+  ClipboardList, 
   Fuel,
   Menu,
-  X,
-  Package,
-  Settings
+  X
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/stock-purchases', icon: Package, label: 'Purchase' },
-  { to: '/stock', icon: Fuel, label: 'Stock' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
+  { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
 ];
 
 export function AppSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
-  const companyName = usePetrolPumpStore((state) => state.companySettings.name);
 
   return (
     <>
@@ -48,9 +45,7 @@ export function AppSidebar() {
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
-              <h1 className="font-bold text-sidebar-foreground truncate">
-                {companyName || 'KGN Fuel Centre'}
-              </h1>
+              <h1 className="font-bold text-sidebar-foreground truncate">KGN Fuel Centre</h1>
               <p className="text-xs text-sidebar-foreground/70">Management System</p>
             </div>
           )}

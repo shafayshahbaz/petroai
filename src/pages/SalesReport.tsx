@@ -6,7 +6,9 @@ import {
   Trash2, 
   Printer, 
   Search, 
-  Calendar
+  Calendar,
+  ChevronDown,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +40,7 @@ import {
 } from '@/components/ui/dialog';
 import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
 import { useToast } from '@/hooks/use-toast';
-import { DailyEntry } from '@/types/petrol-pump';
+import { DailyEntry, DEFAULT_NOZZLE_CONFIG, FuelType } from '@/types/petrol-pump';
 import { PrintableReport } from '@/components/report/PrintableReport';
 
 function formatCurrency(amount: number): string {
@@ -185,8 +187,8 @@ export default function SalesReport() {
                     <TableHead>Date</TableHead>
                     <TableHead>Shift</TableHead>
                     <TableHead className="text-right">Total Sales</TableHead>
-                    <TableHead className="text-right">Outflows</TableHead>
-                    <TableHead className="text-right">Closing Cash</TableHead>
+                    <TableHead className="text-right">Expenses</TableHead>
+                    <TableHead className="text-right">Cash in Hand</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -197,21 +199,16 @@ export default function SalesReport() {
                       <TableRow key={entry.id}>
                         <TableCell className="font-medium">
                           {format(parseISO(entry.date), 'dd MMM yyyy')}
-                          {entry.isMultiDay && entry.endDate && (
-                            <span className="text-muted-foreground ml-1">
-                              - {format(parseISO(entry.endDate), 'dd MMM')}
-                            </span>
-                          )}
                         </TableCell>
                         <TableCell>{entry.shiftName || '-'}</TableCell>
                         <TableCell className="text-right font-mono">
                           {formatCurrency(totals.totalFuelAmount + totals.totalLubeAmount)}
                         </TableCell>
                         <TableCell className="text-right font-mono text-destructive">
-                          {formatCurrency(totals.totalOutflow)}
+                          {formatCurrency(totals.totalExpenses)}
                         </TableCell>
                         <TableCell className="text-right font-mono font-semibold text-success">
-                          {formatCurrency(totals.closingCash)}
+                          {formatCurrency(totals.cashInHand)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">

@@ -1,64 +1,14 @@
 // Fuel types available
 export type FuelType = 'MS' | 'HSD' | 'POWER';
 
-// Company settings
-export interface CompanySettings {
-  name: string;
-  address: string;
-  gstNumber: string;
-  phone: string;
-  logo?: string;
-  isInitialized: boolean;
-}
-
-// Dynamic Tank configuration
-export interface Tank {
-  id: string;
-  name: string;
-  fuelType: FuelType;
-  capacity: number; // in liters
-  currentStock: number; // in liters
-  lowStockThreshold: number; // Alert when below this
-  // Extended tank details
-  dipReading?: number;
-  waterLevel?: number;
-  temperature?: number;
-}
-
-// Dynamic Machine configuration
-export interface Machine {
-  id: string;
-  name: string;
-  nozzles: MachineNozzle[];
-}
-
-// Dynamic Nozzle configuration
-export interface MachineNozzle {
-  id: string;
-  label: string;
-  fuelType: FuelType;
-  tankId: string; // Which tank this nozzle draws from
-}
-
-// Initial nozzle readings for Day 1 setup
-export interface InitialNozzleReading {
-  id: string;
-  fuelType: FuelType;
-  label: string;
-  reading: number;
-}
-
-// Nozzle reading entry (for daily entries)
+// Nozzle configuration
 export interface Nozzle {
   id: string;
-  machineId: string;
+  machineId: number;
   nozzleNumber: number;
   fuelType: FuelType;
-  label: string;
-  tankId?: string; // Which tank this nozzle draws from
   openingReading: number;
   closingReading: number;
-  testing: number; // testing deduction per nozzle
 }
 
 // Fuel rates
@@ -90,148 +40,25 @@ export interface IncomeItem {
   amount: number;
 }
 
-// Credit sale item
-export interface CreditItem {
-  id: string;
-  customerName: string;
-  amount: number;
+// Payment collection
+export interface PaymentCollection {
+  upiCollection: number;
+  cashDeposit: number;
+  otherPayments: { description: string; amount: number }[];
 }
 
-// Purchase/Invoice for TT unloading
-export interface PurchaseInvoice {
-  id: string;
-  invoiceNumber: string;
-  date: string;
-  supplier: string;
-  fuelType: FuelType;
-  tankId?: string; // Which tank to add stock to
-  quantityKL: number; // in Kiloliters
-  basicRate: number;
-  vatPercentage: number;
-  vatAmount: number;
-  totalAmount: number;
-  // Quality Control
-  challanDensity: number;
-  challanTemperature: number;
-  measuredDensity: number;
-  measuredTemperature: number;
-  densityDifference: number;
-  qualityStatus: 'accepted' | 'warning' | 'pending';
-  createdAt: string;
-}
-
-// Staff member
-export interface Staff {
-  id: string;
-  name: string;
-  phone?: string;
-  designation?: string;
-  monthlySalary: number;
-  isActive: boolean;
-  createdAt: string;
-}
-
-// Staff attendance record
-export interface AttendanceRecord {
-  id: string;
-  staffId: string;
-  date: string;
-  status: 'present' | 'absent' | 'half-day';
-}
-
-// Debtor/Credit customer
-export interface Debtor {
-  id: string;
-  name: string;
-  phone?: string;
-  totalDue: number;
-  createdAt: string;
-}
-
-// Debtor transaction (credit given or payment received)
-export interface DebtorTransaction {
-  id: string;
-  debtorId: string;
-  date: string;
-  type: 'credit' | 'payment';
-  amount: number;
-  description: string;
-  // Link to shift entry if auto-created
-  shiftEntryId?: string;
-  staffName?: string;
-  createdAt: string;
-}
-
-// Office/Manager expense (separate from shift expenses)
-export interface OfficeExpense {
-  id: string;
-  date: string;
-  category: string;
-  description: string;
-  amount: number;
-  createdAt: string;
-}
-
-// Shift Entry - Sales by Person
-export interface ShiftEntry {
-  id: string;
-  businessDate: string; // The business date (e.g., 24th = 23rd 7PM to 24th 7PM)
-  staffId: string;
-  staffName: string;
-  // Nozzle readings for this shift
-  nozzleReadings: ShiftNozzleReading[];
-  // Sales calculation
-  totalLiters: number;
-  totalAmount: number;
-  // Deductions
-  upiCollection: number; // Staff's QR collection
-  expenses: number; // Small expenses paid by staff
-  salaryAdvance: number; // Cash taken for personal use
-  creditSales: number; // Credit given to customers
-  // Net result
-  netCashToHandover: number;
-  // Metadata
-  createdAt: string;
-  updatedAt: string;
-}
-
-// Nozzle reading within a shift
-export interface ShiftNozzleReading {
-  nozzleId: string;
-  nozzleLabel: string;
-  machineId: string;
-  machineName: string;
-  fuelType: FuelType;
-  tankId: string;
-  openingReading: number;
-  closingReading: number;
-  rate: number;
-  liters: number;
-  amount: number;
-}
-
-// Tank/Stock configuration (legacy - for backwards compatibility)
-export interface TankStock {
-  fuelType: FuelType;
-  currentStock: number;
-  capacity: number;
-}
-
-// Daily Entry - Updated
+// Daily Entry
 export interface DailyEntry {
   id: string;
   date: string;
-  endDate?: string; // For multi-day entries
-  isMultiDay: boolean;
   shiftName: string;
   fuelRates: FuelRates;
   nozzles: Nozzle[];
   lubeItems: LubeItem[];
   expenses: ExpenseItem[];
   incomes: IncomeItem[];
-  credits: CreditItem[];
   upiCollection: number;
-  bankDeposit: number;
+  cashDeposit: number;
   openingBalance: number;
   testingDeduction: {
     MS: number;
@@ -252,21 +79,13 @@ export interface DailyTotals {
   totalFuelLiters: number;
   totalFuelAmount: number;
   totalLubeAmount: number;
-  totalOtherIncome: number;
-  totalCredits: number;
-  // Inflow
-  openingCash: number;
-  totalInflow: number;
-  // Outflow
+  totalIncomes: number;
+  grandTotalIncome: number;
   totalExpenses: number;
-  totalBankDeposit: number;
-  totalUpi: number;
-  totalOutflow: number;
-  // Net
-  closingCash: number;
+  cashInHand: number;
 }
 
-// Nozzle configuration by fuel type (based on the reference image) - DEFAULT for backwards compatibility
+// Nozzle configuration by fuel type (based on the reference image)
 export const DEFAULT_NOZZLE_CONFIG: { fuelType: FuelType; label: string }[] = [
   // MS - 4 nozzles
   { fuelType: 'MS', label: 'N1' },
@@ -288,18 +107,4 @@ export const DEFAULT_FUEL_RATES: FuelRates = {
   MS: 106.93,
   HSD: 93.20,
   POWER: 114.77,
-};
-
-// Default tank capacities (in liters)
-export const DEFAULT_TANK_CAPACITIES: Record<FuelType, number> = {
-  MS: 20000,
-  HSD: 20000,
-  POWER: 10000,
-};
-
-// Fuel type display info - Updated colors: MS=Orange, HSD=Blue, Power=Pink
-export const FUEL_TYPE_INFO: Record<FuelType, { name: string; color: string }> = {
-  MS: { name: 'MS (Petrol)', color: 'bg-amber-500' },
-  HSD: { name: 'HSD (Diesel)', color: 'bg-blue-600' },
-  POWER: { name: 'Power', color: 'bg-pink-500' },
 };
