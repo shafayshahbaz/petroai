@@ -15,6 +15,7 @@ import {
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useSettingsStore } from '@/store/settings-store';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -30,6 +31,10 @@ const navItems = [
 export function AppSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
+  const { businessProfile } = useSettingsStore();
+
+  // Use business name from settings, fallback to generic name
+  const companyName = businessProfile.companyName || 'Fuel Management';
 
   return (
     <>
@@ -55,7 +60,7 @@ export function AppSidebar() {
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
-              <h1 className="font-bold text-sidebar-foreground truncate">KGN Fuel Centre</h1>
+              <h1 className="font-bold text-sidebar-foreground truncate">{companyName}</h1>
               <p className="text-xs text-sidebar-foreground/70">Management System</p>
             </div>
           )}

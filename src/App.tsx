@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SubscriptionBanner } from "./components/SubscriptionBanner";
 import { MandatoryBackupModal } from "./components/backup/BackupManager";
 import { MainLayout } from "./components/layout/MainLayout";
+import { SessionTimeoutProvider } from "./components/SessionTimeoutProvider";
 import Dashboard from "./pages/Dashboard";
 import DailyEntry from "./pages/DailyEntry";
 import SalesReport from "./pages/SalesReport";
@@ -62,10 +63,12 @@ const App = () => (
               path="/"
               element={
                 <ProtectedRoute>
-                  <SubscriptionBanner />
-                  <MainLayout>
-                    <Dashboard />
-                  </MainLayout>
+                  <SessionTimeoutProvider>
+                    <SubscriptionBanner />
+                    <MainLayout>
+                      <Dashboard />
+                    </MainLayout>
+                  </SessionTimeoutProvider>
                 </ProtectedRoute>
               }
             />

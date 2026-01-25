@@ -6,8 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSettingsStore } from '@/store/settings-store';
-import { usePetrolPumpStore } from '@/store/petrol-pump-store';
-import { usePurchaseStore } from '@/store/purchase-store';
 import { useToast } from '@/hooks/use-toast';
 import { format, differenceInDays } from 'date-fns';
 
@@ -41,9 +39,10 @@ export function BackupManager({ onBackupComplete }: BackupManagerProps) {
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       
+      const companySlug = businessProfile.companyName?.replace(/\s+/g, '-') || 'backup';
       const a = document.createElement('a');
       a.href = url;
-      a.download = `backup-${businessProfile.companyName.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd-HHmm')}.json`;
+      a.download = `backup-${companySlug}-${format(new Date(), 'yyyy-MM-dd-HHmm')}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -99,9 +98,10 @@ export function BackupRestoreSection() {
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       
+      const companySlug = businessProfile.companyName?.replace(/\s+/g, '-') || 'backup';
       const a = document.createElement('a');
       a.href = url;
-      a.download = `backup-${businessProfile.companyName.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd-HHmm')}.json`;
+      a.download = `backup-${companySlug}-${format(new Date(), 'yyyy-MM-dd-HHmm')}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -219,20 +219,38 @@ export function BackupRestoreSection() {
 
 export function MandatoryBackupModal() {
   const [isOpen, setIsOpen] = useState(false);
-  const { lastBackupDate, setLastBackupDate, businessProfile } = useSettingsStore();
+  const { lastBackupDate, setLastBackupDate, businessProfile, accountCreatedAt } = useSettingsStore();
 
   useEffect(() => {
+    // Only trigger backup modal if:
+    // 1. Account is older than 15 days (give new users time)
+    // 2. Last backup is older than 15 days
+    
+    const now = new Date();
+    
+    // If account was just created or no creation date, don't show modal
+    if (!accountCreatedAt) {
+      return;
+    }
+    
+    const daysSinceAccountCreation = differenceInDays(now, new Date(accountCreatedAt));
+    
+    // New accounts (< 15 days old) get a pass
+    if (daysSinceAccountCreation < 15) {
+      return;
+    }
+    
     // Check if backup is required (15+ days since last backup)
     if (!lastBackupDate) {
       setIsOpen(true);
       return;
     }
 
-    const daysSinceBackup = differenceInDays(new Date(), new Date(lastBackupDate));
+    const daysSinceBackup = differenceInDays(now, new Date(lastBackupDate));
     if (daysSinceBackup >= 15) {
       setIsOpen(true);
     }
-  }, [lastBackupDate]);
+  }, [lastBackupDate, accountCreatedAt]);
 
   const handleBackup = () => {
     try {

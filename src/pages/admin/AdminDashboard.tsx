@@ -44,9 +44,11 @@ export default function AdminDashboard() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showExtendDialog, setShowExtendDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showResetClientPasswordDialog, setShowResetClientPasswordDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [extendDays, setExtendDays] = useState(30);
   const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newClientPassword, setNewClientPassword] = useState('');
   
   // Create client form
   const [newClient, setNewClient] = useState({
@@ -245,6 +247,61 @@ export default function AdminDashboard() {
     }
   };
 
+  const resetClientPassword = async () => {
+    if (!selectedClient || !newClientPassword || newClientPassword.length < 8) {
+      toast({
+        title: 'Error',
+        description: 'Password must be at least 8 characters',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      // Call edge function to reset client password
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-client-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          userId: selectedClient.user_id,
+          newPassword: newClientPassword,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to reset password');
+      }
+
+      // Update the password hint
+      await supabase
+        .from('clients')
+        .update({ temp_password_hint: `Reset: ${newClientPassword.slice(-4)}****` })
+        .eq('id', selectedClient.id);
+
+      toast({
+        title: 'Password Reset',
+        description: `Password for ${selectedClient.pump_name} has been reset.`,
+      });
+
+      setShowResetClientPasswordDialog(false);
+      setNewClientPassword('');
+      setSelectedClient(null);
+      fetchClients();
+    } catch (error: any) {
+      console.error('Error resetting password:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to reset client password',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getStatusBadge = (status: string, expiryDate: string) => {
     const isExpired = new Date(expiryDate) < new Date();
     
@@ -426,7 +483,7 @@ export default function AdminDashboard() {
                   <div className="space-y-2">
                     <Label>Pump Name</Label>
                     <Input
-                      placeholder="KGN Fuel Centre"
+                      placeholder="Enter pump name"
                       value={newClient.pumpName}
                       onChange={(e) => setNewClient({ ...newClient, pumpName: e.target.value })}
                       className="bg-slate-700 border-slate-600"
@@ -558,7 +615,20 @@ export default function AdminDashboard() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              className="text-blue-400 hover:text-blue-300"
+                              title="Reset Password"
+                              onClick={() => {
+                                setSelectedClient(client);
+                                setShowResetClientPasswordDialog(true);
+                              }}
+                            >
+                              <Key className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               className="text-slate-400 hover:text-white"
+                              title="Extend Subscription"
                               onClick={() => {
                                 setSelectedClient(client);
                                 setShowExtendDialog(true);
@@ -571,6 +641,7 @@ export default function AdminDashboard() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-amber-400 hover:text-amber-300"
+                                title="Suspend"
                                 onClick={() => toggleStatus(client, 'suspended')}
                               >
                                 <XCircle className="w-4 h-4" />
@@ -580,6 +651,7 @@ export default function AdminDashboard() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-emerald-400 hover:text-emerald-300"
+                                title="Activate"
                                 onClick={() => toggleStatus(client, 'active')}
                               >
                                 <CheckCircle2 className="w-4 h-4" />
@@ -633,6 +705,41 @@ export default function AdminDashboard() {
               </Button>
               <Button onClick={extendSubscription} className="bg-gradient-to-r from-amber-500 to-orange-600">
                 Extend Subscription
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reset Client Password Dialog */}
+        <Dialog open={showResetClientPasswordDialog} onOpenChange={setShowResetClientPasswordDialog}>
+          <DialogContent className="bg-slate-800 border-slate-700 text-white">
+            <DialogHeader>
+              <DialogTitle>Reset Client Password</DialogTitle>
+              <DialogDescription className="text-slate-400">
+                Set a new password for {selectedClient?.pump_name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <Input
+                  type="text"
+                  value={newClientPassword}
+                  onChange={(e) => setNewClientPassword(e.target.value)}
+                  placeholder="Minimum 8 characters"
+                  className="bg-slate-700 border-slate-600"
+                />
+                <p className="text-xs text-slate-500">
+                  The client will need to use this password to log in
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowResetClientPasswordDialog(false)} className="border-slate-600">
+                Cancel
+              </Button>
+              <Button onClick={resetClientPassword} className="bg-gradient-to-r from-blue-500 to-blue-600">
+                Reset Password
               </Button>
             </DialogFooter>
           </DialogContent>

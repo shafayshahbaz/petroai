@@ -5,8 +5,7 @@ import {
   PurchaseEntry, 
   TruckChamber,
   DensityCheck,
-  StockVerification,
-  DEFAULT_TANKS 
+  StockVerification
 } from '@/types/purchase';
 import { FuelType } from '@/types/petrol-pump';
 
@@ -69,18 +68,9 @@ export const usePurchaseStore = create<PurchaseState>()(
       tankNozzleConnections: [],
       lastPrices: { MS: 0, HSD: 0, POWER: 0 },
 
+      // initializeTanks is now a no-op - new accounts start blank
       initializeTanks: () => {
-        const { tanks } = get();
-        if (tanks.length === 0) {
-          const now = new Date().toISOString();
-          const initialTanks: UndergroundTank[] = DEFAULT_TANKS.map((tank) => ({
-            ...tank,
-            id: generateId(),
-            createdAt: now,
-            updatedAt: now,
-          }));
-          set({ tanks: initialTanks });
-        }
+        // Do nothing - new accounts should have 0 tanks and go through Setup Wizard
       },
 
       addTank: (tankData) => {

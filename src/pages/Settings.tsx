@@ -55,7 +55,7 @@ export default function Settings() {
               <Input
                 value={formData.companyName}
                 onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                placeholder="KGN Fuel Centre"
+                placeholder="Enter your company name"
               />
             </div>
             

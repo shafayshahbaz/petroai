@@ -1,6 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePurchaseStore } from '@/store/purchase-store';
+import { useSettingsStore } from '@/store/settings-store';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -10,6 +12,15 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
   const { user, role, isLoading, isFirstLogin } = useAuth();
   const location = useLocation();
+  const { tanks } = usePurchaseStore();
+  const { accountCreatedAt, setAccountCreatedAt } = useSettingsStore();
+
+  // Set account creation date on first login
+  useEffect(() => {
+    if (user && !accountCreatedAt) {
+      setAccountCreatedAt(new Date().toISOString());
+    }
+  }, [user, accountCreatedAt, setAccountCreatedAt]);
 
   if (isLoading) {
     return (
@@ -30,8 +41,12 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
     return <Navigate to="/login" replace />;
   }
 
-  // Redirect pump owners to setup if first login
-  if (role === 'pump_owner' && isFirstLogin && location.pathname !== '/setup') {
+  // Redirect pump owners to setup if:
+  // 1. First login flag is set, OR
+  // 2. No tanks configured (blank account)
+  const needsSetup = role === 'pump_owner' && (isFirstLogin || tanks.length === 0);
+  
+  if (needsSetup && location.pathname !== '/setup') {
     return <Navigate to="/setup" replace />;
   }
 
