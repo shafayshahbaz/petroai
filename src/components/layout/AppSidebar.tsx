@@ -1,18 +1,11 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  FileText, 
-  ClipboardList, 
   Fuel,
   Menu,
   X,
   Package,
-  Settings,
-  Users,
-  Calculator,
-  BadgeCheck,
-  BookUser,
-  Wallet
+  Settings
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -21,14 +14,8 @@ import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/total-sales', icon: Calculator, label: 'Total Sales' },
-  { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
-  { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
-  { to: '/stock-purchases', icon: Package, label: 'Purchases' },
-  { to: '/stock', icon: Fuel, label: 'Stock & Tanks' },
-  { to: '/expenses', icon: Wallet, label: 'Expenses' },
-  { to: '/staff-salary', icon: BadgeCheck, label: 'Staff & Salary' },
-  { to: '/debtors', icon: BookUser, label: 'Debtors' },
+  { to: '/stock-purchases', icon: Package, label: 'Purchase' },
+  { to: '/stock', icon: Fuel, label: 'Stock' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

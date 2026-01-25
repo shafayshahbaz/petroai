@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { Info } from 'lucide-react';
+import { Info, Lock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { FuelType, FUEL_TYPE_INFO } from '@/types/petrol-pump';
 import { cn } from '@/lib/utils';
@@ -21,8 +22,24 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+// Updated color scheme: MS=Orange, HSD=Blue, Power=Pink
+const FUEL_COLORS: Record<FuelType, { primary: string; text: string }> = {
+  MS: { primary: 'bg-amber-500', text: 'text-amber-600' },
+  HSD: { primary: 'bg-blue-600', text: 'text-blue-600' },
+  POWER: { primary: 'bg-pink-500', text: 'text-pink-600' },
+};
+
+const FUEL_LABELS: Record<FuelType, string> = {
+  MS: 'MS (Petrol)',
+  HSD: 'HSD (Diesel)',
+  POWER: 'Power',
+};
+
 export function MeterReadingsSection() {
-  const { currentEntry, updateNozzle, updateFuelRates, tanks } = usePetrolPumpStore();
+  const { currentEntry, updateNozzle, updateFuelRates, tanks, entries } = usePetrolPumpStore();
+
+  // Check if this is Day 1 (no previous entries exist)
+  const isFirstEntry = entries.length === 0;
 
   // Group nozzles by fuel type
   const groupedNozzles = useMemo(() => {
@@ -93,20 +110,30 @@ export function MeterReadingsSection() {
     <TooltipProvider>
       <Card>
         <CardHeader>
-          <CardTitle>Sales & Meter Readings</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Meter Readings</CardTitle>
+            {!isFirstEntry && (
+              <Badge variant="outline" className="gap-1">
+                <Lock className="w-3 h-3" />
+                Opening Readings Locked
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {(['MS', 'POWER', 'HSD'] as FuelType[]).map((fuelType) => {
             const nozzles = groupedNozzles[fuelType];
             if (nozzles.length === 0) return null;
 
+            const colors = FUEL_COLORS[fuelType];
+
             return (
               <div key={fuelType} className="space-y-3">
                 {/* Fuel Type Header */}
                 <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <span className={cn("w-4 h-4 rounded-full", FUEL_TYPE_INFO[fuelType].color)} />
-                    <h3 className="font-semibold">{FUEL_TYPE_INFO[fuelType].name}</h3>
+                    <span className={cn("w-4 h-4 rounded-full", colors.primary)} />
+                    <h3 className="font-semibold">{FUEL_LABELS[fuelType]}</h3>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Rate:</span>
@@ -131,18 +158,16 @@ export function MeterReadingsSection() {
                     <thead>
                       <tr className="border-b">
                         <th className="text-left py-2 px-2 font-medium text-muted-foreground">Nozzle</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Opening</th>
+                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                          Opening {!isFirstEntry && <Lock className="w-3 h-3 inline ml-1" />}
+                        </th>
                         <th className="text-right py-2 px-2 font-medium text-muted-foreground">Closing</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Testing</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Net Sales (L)</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Amount (₹)</th>
+                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Sales (L)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {nozzles.map((nozzle) => {
-                        const grossLiters = Math.max(0, nozzle.closingReading - nozzle.openingReading);
-                        const netLiters = Math.max(0, grossLiters - (nozzle.testing || 0));
-                        const amount = netLiters * (currentEntry.fuelRates?.[fuelType] || 0);
+                        const netLiters = Math.max(0, nozzle.closingReading - nozzle.openingReading);
                         const tankName = getTankName(nozzle.tankId);
                         
                         return (
@@ -168,8 +193,13 @@ export function MeterReadingsSection() {
                                 step="0.001"
                                 value={nozzle.openingReading || ''}
                                 onChange={(e) => handleReadingChange(nozzle.id, 'openingReading', e.target.value)}
-                                className="w-28 h-8 text-right ml-auto"
+                                className={cn(
+                                  "w-28 h-8 text-right ml-auto font-mono",
+                                  !isFirstEntry && "bg-muted cursor-not-allowed"
+                                )}
                                 placeholder="0.000"
+                                disabled={!isFirstEntry}
+                                readOnly={!isFirstEntry}
                               />
                             </td>
                             <td className="py-2 px-2">
@@ -178,40 +208,38 @@ export function MeterReadingsSection() {
                                 step="0.001"
                                 value={nozzle.closingReading || ''}
                                 onChange={(e) => handleReadingChange(nozzle.id, 'closingReading', e.target.value)}
-                                className="w-28 h-8 text-right ml-auto"
+                                className="w-28 h-8 text-right ml-auto font-mono"
                                 placeholder="0.000"
                               />
                             </td>
-                            <td className="py-2 px-2">
-                              <Input
-                                type="number"
-                                step="0.1"
-                                value={nozzle.testing || ''}
-                                onChange={(e) => handleReadingChange(nozzle.id, 'testing', e.target.value)}
-                                className="w-20 h-8 text-right ml-auto"
-                                placeholder="0"
-                              />
-                            </td>
-                            <td className="py-2 px-2 text-right font-mono">{formatNumber(netLiters)}</td>
-                            <td className="py-2 px-2 text-right font-mono">{formatCurrency(amount)}</td>
+                            <td className="py-2 px-2 text-right font-mono font-semibold">{formatNumber(netLiters)}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                     <tfoot>
                       <tr className="bg-muted/30">
-                        <td colSpan={4} className="py-2 px-2 font-semibold text-right">
-                          {FUEL_TYPE_INFO[fuelType].name} Total:
+                        <td colSpan={3} className="py-2 px-2 font-semibold text-right">
+                          Total {FUEL_LABELS[fuelType]}:
                         </td>
                         <td className="py-2 px-2 text-right font-mono font-semibold">
                           {formatNumber(totals[fuelType].liters)} L
                         </td>
-                        <td className="py-2 px-2 text-right font-mono font-semibold">
-                          {formatCurrency(totals[fuelType].amount)}
-                        </td>
                       </tr>
                     </tfoot>
                   </table>
+                </div>
+
+                {/* Fuel Type Sales Summary */}
+                <div className={cn("flex items-center justify-between p-2 rounded-lg border", 
+                  fuelType === 'MS' && "bg-amber-500/10 border-amber-500/30",
+                  fuelType === 'HSD' && "bg-blue-500/10 border-blue-500/30",
+                  fuelType === 'POWER' && "bg-pink-500/10 border-pink-500/30"
+                )}>
+                  <span className={cn("text-sm font-medium", colors.text)}>
+                    {FUEL_LABELS[fuelType]} Sales
+                  </span>
+                  <span className="font-mono font-bold">{formatCurrency(totals[fuelType].amount)}</span>
                 </div>
               </div>
             );
@@ -220,7 +248,7 @@ export function MeterReadingsSection() {
           {/* Grand Total */}
           <div className="bg-primary/10 rounded-lg p-4">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-lg">Total Fuel Sales</span>
+              <span className="font-semibold text-lg">Net Sales Amount</span>
               <span className="font-mono font-bold text-xl">{formatCurrency(grandTotal)}</span>
             </div>
           </div>
