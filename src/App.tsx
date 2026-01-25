@@ -9,6 +9,7 @@ import DailyEntry from "./pages/DailyEntry";
 import SalesReport from "./pages/SalesReport";
 import CompanySettings from "./pages/CompanySettings";
 import StockPurchases from "./pages/StockPurchases";
+import Stock from "./pages/Stock";
 import NotFound from "./pages/NotFound";
 import { usePetrolPumpStore } from "./store/petrol-pump-store";
 
@@ -39,6 +40,7 @@ function AppRoutes() {
       <Route path="/daily-entry" element={<DailyEntry />} />
       <Route path="/sales-report" element={<SalesReport />} />
       <Route path="/stock-purchases" element={<StockPurchases />} />
+      <Route path="/stock" element={<Stock />} />
       <Route path="/settings" element={<CompanySettings />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

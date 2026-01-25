@@ -202,10 +202,27 @@
   }
 }
 
+/* Wave animation for tank liquid */
+@keyframes wave {
+  0% {
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(-25%) rotate(1deg);
+  }
+  100% {
+    transform: translateX(-50%) rotate(0deg);
+  }
+}
+
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
 
 .animate-slide-in-left {
   animation: slide-in-left 0.3s ease-out;
+}
+
+.animate-wave {
+  animation: wave 3s ease-in-out infinite;
 }
