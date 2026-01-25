@@ -72,25 +72,29 @@ export interface UnloadingWizardState {
   stockVerifications: StockVerification[];
 }
 
-// ASTM Table 53B correction factors (simplified for common ranges)
-// This is a simplified implementation - real ASTM tables have thousands of entries
-export function calculateCorrectedDensity(observedDensity: number, temperature: number, fuelType: FuelType): number {
-  // Reference temperature is 15°C
+// ASTM D1250 Table 53B correction using K0 coefficients
+// Reference temperature is 15°C
+export function calculateCorrectedDensity(observedDensity: number, temperature: number, _fuelType?: FuelType): number {
   const refTemp = 15;
   const tempDiff = temperature - refTemp;
   
-  // Thermal expansion coefficients (approximate)
-  // MS/Power (Petrol): ~0.00120 per °C
-  // HSD (Diesel): ~0.00080 per °C
-  const expansionCoeff = fuelType === 'HSD' ? 0.00080 : 0.00120;
+  // Determine K0 based on observed density (ASTM D1250 Table 53B)
+  // If density < 800: MS (Petrol) K0 = 346.4228
+  // If density >= 800: HSD (Diesel) K0 = 186.9696
+  const K0 = observedDensity < 800 ? 346.4228 : 186.9696;
   
-  // Volume Correction Factor (VCF) based on ASTM Table 53B approximation
-  const vcf = 1 - (expansionCoeff * tempDiff);
+  // Calculate thermal expansion coefficient alpha
+  // α = K0 / (density^2) per °C (simplified from ASTM polynomial)
+  const alpha = K0 / (observedDensity * observedDensity);
   
-  // Corrected density at 15°C
-  const correctedDensity = observedDensity / vcf;
+  // Volume Correction Factor (VCF) at reference temperature
+  const vcf = 1 - (alpha * tempDiff);
   
-  return Math.round(correctedDensity * 100) / 100;
+  // Standard density at 15°C = observed density / VCF
+  const standardDensity = observedDensity / vcf;
+  
+  // Return with high precision (2 decimal places)
+  return Math.round(standardDensity * 100) / 100;
 }
 
 // Default tanks for initial setup

@@ -7,9 +7,9 @@ interface TruckVisualProps {
 }
 
 const fuelColors: Record<string, string> = {
-  MS: 'bg-green-500',
-  HSD: 'bg-amber-600',
-  POWER: 'bg-blue-500',
+  MS: 'bg-orange-500',
+  HSD: 'bg-blue-600',
+  POWER: 'bg-pink-500',
 };
 
 const fuelLabels: Record<string, string> = {
@@ -76,15 +76,15 @@ export function TruckVisual({ chambers, className }: TruckVisualProps) {
       {/* Legend */}
       <div className="flex gap-4 text-xs">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-green-500" />
+          <div className="w-3 h-3 rounded bg-orange-500" />
           <span>MS</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-amber-600" />
+          <div className="w-3 h-3 rounded bg-blue-600" />
           <span>HSD</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-blue-500" />
+          <div className="w-3 h-3 rounded bg-pink-500" />
           <span>Power</span>
         </div>
       </div>

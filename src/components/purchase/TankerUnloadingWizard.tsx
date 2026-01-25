@@ -29,7 +29,7 @@ const generateId = () => Math.random().toString(36).substring(2, 15);
 
 export function TankerUnloadingWizard() {
   const navigate = useNavigate();
-  const { tanks, initializeTanks, savePurchase, finalizeUnloading, getTanksByFuelType } = usePurchaseStore();
+  const { tanks, initializeTanks, savePurchase, finalizeUnloading, getTanksByFuelType, lastChamberCapacity, setLastChamberCapacity } = usePurchaseStore();
   
   // Initialize tanks on mount
   useEffect(() => {
@@ -68,7 +68,7 @@ export function TankerUnloadingWizard() {
         id: generateId(),
         chamberNumber: i + 1,
         fuelType: 'MS' as FuelType,
-        capacity: 4000,
+        capacity: lastChamberCapacity, // Use remembered capacity (default 3000L)
         challanDip: 0,
         physicalDip: 0,
         destinationTankId: null,
@@ -77,7 +77,7 @@ export function TankerUnloadingWizard() {
     } else {
       setChambers([]);
     }
-  }, [numberOfChambers]);
+  }, [numberOfChambers, lastChamberCapacity]);
 
   // Generate stock verifications based on selected tanks in step 4
   useEffect(() => {
@@ -107,7 +107,11 @@ export function TankerUnloadingWizard() {
     setChambers(prev => prev.map(c => 
       c.id === chamberId ? { ...c, ...updates } : c
     ));
-  }, []);
+    // If capacity is updated, remember it for future entries
+    if (updates.capacity && updates.capacity > 0) {
+      setLastChamberCapacity(updates.capacity);
+    }
+  }, [setLastChamberCapacity]);
 
   const updateVerification = useCallback((tankId: string, updates: Partial<StockVerification>) => {
     setStockVerifications(prev => prev.map(v => {
@@ -169,9 +173,6 @@ export function TankerUnloadingWizard() {
     toast.success('Tanker unloading completed successfully!');
     navigate('/purchase');
   };
-
-  // Get primary fuel type for density check (from first chamber)
-  const primaryFuelType = chambers.length > 0 ? chambers[0].fuelType : 'MS';
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -393,7 +394,6 @@ export function TankerUnloadingWizard() {
 
               {/* Density Calculator */}
               <DensityCalculator
-                fuelType={primaryFuelType}
                 densityCheck={densityCheck}
                 onChange={setDensityCheck}
               />
@@ -426,9 +426,9 @@ export function TankerUnloadingWizard() {
                         <TableCell>
                           <span className={cn(
                             "px-2 py-1 rounded text-sm font-medium",
-                            chamber.fuelType === 'MS' && "bg-green-500/20 text-green-600",
-                            chamber.fuelType === 'HSD' && "bg-amber-500/20 text-amber-600",
-                            chamber.fuelType === 'POWER' && "bg-blue-500/20 text-blue-600"
+                            chamber.fuelType === 'MS' && "bg-orange-500/20 text-orange-600",
+                            chamber.fuelType === 'HSD' && "bg-blue-500/20 text-blue-600",
+                            chamber.fuelType === 'POWER' && "bg-pink-500/20 text-pink-600"
                           )}>
                             {chamber.fuelType}
                           </span>
