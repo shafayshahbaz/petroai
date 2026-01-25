@@ -12,10 +12,12 @@ export interface BusinessProfile {
 interface SettingsState {
   businessProfile: BusinessProfile;
   lastBackupDate: string | null;
+  accountCreatedAt: string | null;
   
   // Actions
   updateBusinessProfile: (profile: Partial<BusinessProfile>) => void;
   setLastBackupDate: (date: string) => void;
+  setAccountCreatedAt: (date: string) => void;
   
   // Backup/Restore
   exportAllData: () => string;
@@ -26,13 +28,14 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       businessProfile: {
-        companyName: 'KGN Fuel Centre',
+        companyName: '',
         customerId: '',
         address: '',
         gstNumber: '',
         phone: '',
       },
       lastBackupDate: null,
+      accountCreatedAt: null,
 
       updateBusinessProfile: (profile) => {
         set((state) => ({
@@ -42,6 +45,10 @@ export const useSettingsStore = create<SettingsState>()(
 
       setLastBackupDate: (date) => {
         set({ lastBackupDate: date });
+      },
+
+      setAccountCreatedAt: (date) => {
+        set({ accountCreatedAt: date });
       },
 
       exportAllData: () => {

@@ -91,10 +91,4 @@ export function calculateCorrectedDensity(observedDensity: number, temperature: 
   return Math.round(standardDensity * 10) / 10;
 }
 
-// Default tanks for initial setup
-export const DEFAULT_TANKS: Omit<UndergroundTank, 'id' | 'createdAt' | 'updatedAt'>[] = [
-  { name: 'MS Tank 1', fuelType: 'MS', capacity: 12000, currentStock: 0 },
-  { name: 'MS Tank 2', fuelType: 'MS', capacity: 12000, currentStock: 0 },
-  { name: 'HSD Tank 1', fuelType: 'HSD', capacity: 12000, currentStock: 0 },
-  { name: 'Power Tank 1', fuelType: 'POWER', capacity: 6000, currentStock: 0 },
-];
+// No default tanks - new accounts start blank and must use Setup Wizard

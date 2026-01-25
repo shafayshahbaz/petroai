@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { DailyEntry, FuelType } from '@/types/petrol-pump';
 import { calculateTotals } from '@/store/petrol-pump-store';
+import { useSettingsStore } from '@/store/settings-store';
 
 interface DailyReportSheetProps {
   entry: DailyEntry;
@@ -20,6 +21,7 @@ function formatCurrency(amount: number): string {
 }
 
 export function DailyReportSheet({ entry }: DailyReportSheetProps) {
+  const { businessProfile } = useSettingsStore();
   const totals = calculateTotals(entry);
 
   const groupedNozzles = {
@@ -40,6 +42,11 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
 
   const totalCreditSales = entry.creditSales?.reduce((sum, cs) => sum + cs.amount, 0) || 0;
 
+  // Use company name from settings, fallback to generic
+  const companyName = businessProfile.companyName || 'FUEL CENTRE';
+  const currentYear = new Date().getFullYear();
+  const fiscalYear = `${currentYear}-${(currentYear + 1).toString().slice(-2)}`;
+
   return (
     <div className="daily-report-sheet font-mono bg-white text-black" style={{ 
       width: '210mm', 
@@ -52,7 +59,7 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
     }}>
       {/* Header */}
       <div className="text-center mb-2">
-        <h1 className="font-bold tracking-wide underline" style={{ fontSize: '14px' }}>KGN FUEL CENTRE 2025-26</h1>
+        <h1 className="font-bold tracking-wide underline" style={{ fontSize: '14px' }}>{companyName.toUpperCase()} {fiscalYear}</h1>
         <p style={{ fontSize: '10px' }}>{format(parseISO(entry.date), 'dd-MM-yyyy')} {entry.shiftName && `| Shift: ${entry.shiftName}`}</p>
       </div>
 
