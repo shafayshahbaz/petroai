@@ -181,8 +181,6 @@
   body {
     background: white !important;
     color: black !important;
-    font-size: 12px !important;
-    line-height: 1.4 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -198,13 +196,6 @@
   .inflow-column,
   .outflow-column {
     break-inside: avoid !important;
-  }
-
-  /* Ensure proper margins */
-  .daily-report-sheet {
-    padding: 0.5in !important;
-    max-width: 100% !important;
-    margin: 0 !important;
   }
 
   /* Force background graphics to print */
@@ -227,7 +218,8 @@
   /* Ensure content fits on page */
   @page {
     size: A4;
-    margin: 0.5in;
+    /* Match on-screen layout: rely on component padding instead of extra page margins */
+    margin: 0;
   }
 }
 
