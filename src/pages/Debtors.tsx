@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Phone, Edit2, Save, X, Trash2 } from 'lucide-react';
+import { Plus, Phone, Edit2, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,23 +19,27 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { useToast } from '@/hooks/use-toast';
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
+import { formatCurrency, formatAmount } from '@/lib/format';
 
 export default function Debtors() {
-  const { debtors, addDebtor, updateDebtor } = usePetrolPumpStore();
+  const { debtors, addDebtor, updateDebtor, deleteDebtor } = usePetrolPumpStore();
   const { toast } = useToast();
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     contactNumber: '',
@@ -48,7 +52,7 @@ export default function Debtors() {
       setFormData({
         name: debtor.name,
         contactNumber: debtor.contactNumber || '',
-        openingBalance: debtor.openingBalance?.toString() || '',
+        openingBalance: debtor.openingBalance?.toString() || '0',
       });
     } else {
       setEditingId(null);
@@ -70,9 +74,16 @@ export default function Debtors() {
     const openingBal = parseFloat(formData.openingBalance) || 0;
 
     if (editingId) {
+      // Get current debtor to calculate outstanding difference
+      const currentDebtor = debtors.find(d => d.id === editingId);
+      const oldOpeningBalance = currentDebtor?.openingBalance || 0;
+      const outstandingDiff = openingBal - oldOpeningBalance;
+      
       updateDebtor(editingId, {
         name: formData.name.trim(),
         contactNumber: formData.contactNumber.trim() || undefined,
+        openingBalance: openingBal,
+        totalOutstanding: (currentDebtor?.totalOutstanding || 0) + outstandingDiff,
       });
       toast({
         title: 'Debtor Updated',
@@ -89,6 +100,18 @@ export default function Debtors() {
     setIsDialogOpen(false);
     setFormData({ name: '', contactNumber: '', openingBalance: '' });
     setEditingId(null);
+  };
+
+  const handleDelete = () => {
+    if (deleteId) {
+      const debtor = debtors.find(d => d.id === deleteId);
+      deleteDebtor(deleteId);
+      toast({
+        title: 'Debtor Deleted',
+        description: `${debtor?.name} has been deleted.`,
+      });
+      setDeleteId(null);
+    }
   };
 
   const totalOutstanding = debtors.reduce((sum, d) => sum + d.totalOutstanding, 0);
@@ -160,19 +183,29 @@ export default function Debtors() {
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatCurrency(debtor.openingBalance || 0)}
+                      {formatAmount(debtor.openingBalance || 0)}
                     </TableCell>
                     <TableCell className="text-right font-mono font-medium text-destructive">
-                      {formatCurrency(debtor.totalOutstanding)}
+                      {formatAmount(debtor.totalOutstanding)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleOpenDialog(debtor)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenDialog(debtor)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeleteId(debtor.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -207,25 +240,25 @@ export default function Debtors() {
                 onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value })}
               />
             </div>
-            {!editingId && (
-              <div className="space-y-2">
-                <Label htmlFor="opening">Opening Balance (Old Dues)</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
-                  <Input
-                    id="opening"
-                    type="number"
-                    placeholder="0.00"
-                    className="pl-8"
-                    value={formData.openingBalance}
-                    onChange={(e) => setFormData({ ...formData, openingBalance: e.target.value })}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Enter any existing dues from before using this software.
-                </p>
+            <div className="space-y-2">
+              <Label htmlFor="opening">Opening Balance (Old Dues)</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                <Input
+                  id="opening"
+                  type="number"
+                  placeholder="0.00"
+                  className="pl-8"
+                  value={formData.openingBalance}
+                  onChange={(e) => setFormData({ ...formData, openingBalance: e.target.value })}
+                />
               </div>
-            )}
+              <p className="text-xs text-muted-foreground">
+                {editingId 
+                  ? 'Update opening balance - this will adjust the total outstanding accordingly.'
+                  : 'Enter any existing dues from before using this software.'}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -238,6 +271,24 @@ export default function Debtors() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Debtor?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. All transaction history for this debtor will remain in the ledger but the debtor profile will be removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

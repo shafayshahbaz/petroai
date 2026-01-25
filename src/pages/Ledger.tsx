@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
-import { Calendar as CalendarIcon, BookOpen } from 'lucide-react';
+import { format, parseISO, isWithinInterval } from 'date-fns';
+import { Calendar as CalendarIcon, BookOpen, Download, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
@@ -9,6 +9,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -20,6 +27,7 @@ import {
 } from '@/components/ui/table';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { cn } from '@/lib/utils';
+import { formatAmount } from '@/lib/format';
 
 type LedgerType = 'bank' | 'upi' | 'debtors' | 'expenses';
 
@@ -29,12 +37,6 @@ interface LedgerRow {
   remarks?: string;
   debit: number;
   credit: number;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    maximumFractionDigits: 2,
-  }).format(amount);
 }
 
 // Get current financial year dates (April 1 - March 31)
@@ -59,11 +61,53 @@ const ledgerTabs: { id: LedgerType; label: string; description: string }[] = [
   { id: 'expenses', label: 'Expenses', description: 'All expenses from daily entries' },
 ];
 
+// Export to CSV/XLS
+function exportToCSV(data: (LedgerRow & { balance: number })[], filename: string, includeRemarks: boolean) {
+  const headers = includeRemarks 
+    ? ['Date', 'Particulars', 'Remarks', 'Debit', 'Credit', 'Balance']
+    : ['Date', 'Particulars', 'Debit', 'Credit', 'Balance'];
+  
+  const csvContent = [
+    headers.join(','),
+    ...data.map(row => {
+      const values = includeRemarks 
+        ? [
+            format(parseISO(row.date), 'dd-MM-yyyy'),
+            `"${row.particulars}"`,
+            `"${row.remarks || ''}"`,
+            row.debit.toFixed(2),
+            row.credit.toFixed(2),
+            row.balance.toFixed(2)
+          ]
+        : [
+            format(parseISO(row.date), 'dd-MM-yyyy'),
+            `"${row.particulars}"`,
+            row.debit.toFixed(2),
+            row.credit.toFixed(2),
+            row.balance.toFixed(2)
+          ];
+      return values.join(',');
+    })
+  ].join('\n');
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${filename}.csv`;
+  link.click();
+}
+
+// Simple PDF export using print
+function exportToPDF(ledgerLabel: string) {
+  window.print();
+}
+
 export default function Ledger() {
   const { entries, debtors } = usePetrolPumpStore();
   const fyDates = getFYDates();
   
   const [selectedLedger, setSelectedLedger] = useState<LedgerType | null>(null);
+  const [selectedDebtorId, setSelectedDebtorId] = useState<string>('all');
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: fyDates.start,
     to: fyDates.end,
@@ -108,8 +152,13 @@ export default function Ledger() {
         break;
 
       case 'debtors':
-        // Add opening balances for all debtors
-        debtors.forEach((debtor) => {
+        // If specific debtor selected, filter only their transactions
+        const targetDebtors = selectedDebtorId === 'all' 
+          ? debtors 
+          : debtors.filter(d => d.id === selectedDebtorId);
+        
+        // Add opening balances for debtors
+        targetDebtors.forEach((debtor) => {
           if (debtor.openingBalance && debtor.openingBalance > 0) {
             rows.push({
               date: dateRange.from.toISOString().split('T')[0],
@@ -123,13 +172,16 @@ export default function Ledger() {
         // Add credit sales from entries
         filteredEntries.forEach((entry) => {
           entry.creditSales?.forEach((cs) => {
-            rows.push({
-              date: entry.date,
-              particulars: cs.debtorName,
-              remarks: cs.remarks || '',
-              debit: cs.amount,
-              credit: 0,
-            });
+            // Filter by selected debtor if not "all"
+            if (selectedDebtorId === 'all' || cs.debtorId === selectedDebtorId) {
+              rows.push({
+                date: entry.date,
+                particulars: cs.debtorName,
+                remarks: cs.remarks || '',
+                debit: cs.amount,
+                credit: 0,
+              });
+            }
           });
         });
         
@@ -152,7 +204,7 @@ export default function Ledger() {
     }
 
     return rows;
-  }, [selectedLedger, entries, debtors, dateRange]);
+  }, [selectedLedger, entries, debtors, dateRange, selectedDebtorId]);
 
   const totals = useMemo(() => {
     return ledgerData.reduce(
@@ -210,18 +262,61 @@ export default function Ledger() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <Button variant="ghost" className="mb-2 -ml-2" onClick={() => setSelectedLedger(null)}>
+          <Button variant="ghost" className="mb-2 -ml-2" onClick={() => {
+            setSelectedLedger(null);
+            setSelectedDebtorId('all');
+          }}>
             ← Back to Ledgers
           </Button>
           <h1 className="text-2xl font-bold text-foreground">{currentTab?.label}</h1>
           <p className="text-muted-foreground">{currentTab?.description}</p>
         </div>
+        
+        {/* Export Buttons */}
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => exportToCSV(dataWithBalance, `${selectedLedger}-ledger`, selectedLedger === 'debtors')}
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export XLS
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => exportToPDF(currentTab?.label || '')}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
-      {/* Date Range Filter */}
+      {/* Filters */}
       <Card>
         <CardContent className="py-4">
           <div className="flex flex-wrap items-center gap-4">
+            {/* Debtor Filter - Only show for debtors ledger */}
+            {selectedLedger === 'debtors' && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Account:</span>
+                <Select value={selectedDebtorId} onValueChange={setSelectedDebtorId}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Debtors" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Debtors</SelectItem>
+                    {debtors.map((debtor) => (
+                      <SelectItem key={debtor.id} value={debtor.id}>
+                        {debtor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">From:</span>
               <Popover>
@@ -301,13 +396,13 @@ export default function Ledger() {
                     <TableCell>{row.particulars}</TableCell>
                     {selectedLedger === 'debtors' && <TableCell className="text-muted-foreground">{row.remarks}</TableCell>}
                     <TableCell className="text-right font-mono">
-                      {row.debit > 0 ? formatCurrency(row.debit) : '-'}
+                      {row.debit > 0 ? formatAmount(row.debit) : '-'}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {row.credit > 0 ? formatCurrency(row.credit) : '-'}
+                      {row.credit > 0 ? formatAmount(row.credit) : '-'}
                     </TableCell>
                     <TableCell className="text-right font-mono font-medium">
-                      {formatCurrency(row.balance)}
+                      {formatAmount(row.balance)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -317,10 +412,10 @@ export default function Ledger() {
               <TableFooter>
                 <TableRow className="bg-muted/50 font-bold">
                   <TableCell colSpan={selectedLedger === 'debtors' ? 3 : 2}>Total</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(totals.debit)}</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(totals.credit)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatAmount(totals.debit)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatAmount(totals.credit)}</TableCell>
                   <TableCell className="text-right font-mono text-primary">
-                    {formatCurrency(totals.debit - totals.credit)}
+                    {formatAmount(totals.debit - totals.credit)}
                   </TableCell>
                 </TableRow>
               </TableFooter>
