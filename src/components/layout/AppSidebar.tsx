@@ -8,7 +8,8 @@ import {
   X,
   BookOpen,
   Users,
-  Truck
+  Truck,
+  Database
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -17,6 +18,7 @@ import { Button } from '@/components/ui/button';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/purchase', icon: Truck, label: 'Purchase' },
+  { to: '/stock', icon: Database, label: 'Stock' },
   { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
   { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
   { to: '/ledger', icon: BookOpen, label: 'Ledger' },
@@ -41,12 +43,12 @@ export function AppSidebar() {
       <aside
         className={cn(
           "fixed lg:sticky top-0 left-0 z-50 h-screen bg-sidebar transition-all duration-300 flex flex-col",
-          isCollapsed ? "w-0 lg:w-16 overflow-hidden" : "w-64"
+          isCollapsed ? "w-0 lg:w-20 overflow-hidden" : "w-64"
         )}
       >
         {/* Header */}
         <div className="flex items-center gap-3 p-4 border-b border-sidebar-border">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-sidebar-primary">
+          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-sidebar-primary shrink-0">
             <Fuel className="w-6 h-6 text-sidebar-primary-foreground" />
           </div>
           {!isCollapsed && (
@@ -111,11 +113,14 @@ export function AppSidebar() {
         <Menu className="w-5 h-5" />
       </Button>
 
-      {/* Desktop toggle button */}
+      {/* Desktop toggle button - Always visible */}
       <Button
         variant="ghost"
         size="icon"
-        className="fixed top-4 left-4 z-30 hidden lg:flex text-muted-foreground hover:text-foreground"
+        className={cn(
+          "fixed top-4 z-30 hidden lg:flex text-muted-foreground hover:text-foreground transition-all duration-300",
+          isCollapsed ? "left-24" : "left-[270px]"
+        )}
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         <Menu className="w-5 h-5" />

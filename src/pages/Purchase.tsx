@@ -6,11 +6,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { usePurchaseStore } from '@/store/purchase-store';
 import { formatAmount, formatLiters } from '@/lib/format';
-import { Plus, Truck, Package, History, Trash2, Eye } from 'lucide-react';
+import { Plus, Truck, Package, History, Trash2, Eye, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { PurchaseEntry } from '@/types/purchase';
+import { InvoiceViewDialog } from '@/components/purchase/InvoiceViewDialog';
+import { InvoiceEditDialog } from '@/components/purchase/InvoiceEditDialog';
 
 export default function Purchase() {
   const navigate = useNavigate();
@@ -18,10 +20,10 @@ export default function Purchase() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<PurchaseEntry | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   
   useEffect(() => {
     initializeTanks();
-    // Scroll to top on mount
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [initializeTanks]);
 
@@ -46,6 +48,16 @@ export default function Purchase() {
   const handleViewClick = (purchase: PurchaseEntry) => {
     setSelectedPurchase(purchase);
     setViewDialogOpen(true);
+  };
+
+  const handleEditClick = (purchase: PurchaseEntry) => {
+    setSelectedPurchase(purchase);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditFromView = () => {
+    setViewDialogOpen(false);
+    setEditDialogOpen(true);
   };
 
   return (
@@ -172,7 +184,7 @@ export default function Purchase() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -180,6 +192,14 @@ export default function Purchase() {
                           title="View Details"
                         >
                           <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditClick(purchase)}
+                          title="Edit Invoice"
+                        >
+                          <Pencil className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -233,92 +253,26 @@ export default function Purchase() {
         </DialogContent>
       </Dialog>
 
-      {/* View Details Dialog */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Invoice Details</DialogTitle>
-          </DialogHeader>
-          {selectedPurchase && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Invoice Number</p>
-                  <p className="font-medium">{selectedPurchase.invoiceNumber}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Date</p>
-                  <p className="font-medium">{format(new Date(selectedPurchase.invoiceDate), 'dd MMM yyyy')}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Depot</p>
-                  <p className="font-medium">{selectedPurchase.supplierName}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Invoice Value</p>
-                  <p className="font-medium">₹{formatAmount(selectedPurchase.totalInvoiceValue)}</p>
-                </div>
-              </div>
-              
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Chambers</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedPurchase.chambers.map((chamber, idx) => (
-                    <span 
-                      key={chamber.id}
-                      className={cn(
-                        "px-3 py-1 rounded text-sm font-medium",
-                        chamber.fuelType === 'MS' && "bg-orange-500/20 text-orange-600",
-                        chamber.fuelType === 'HSD' && "bg-blue-500/20 text-blue-600",
-                        chamber.fuelType === 'POWER' && "bg-pink-500/20 text-pink-600"
-                      )}
-                    >
-                      C{idx + 1}: {chamber.fuelType} ({formatLiters(chamber.capacity)}L)
-                    </span>
-                  ))}
-                </div>
-              </div>
+      {/* Advanced View Dialog */}
+      <InvoiceViewDialog
+        purchase={selectedPurchase}
+        isOpen={viewDialogOpen}
+        onClose={() => {
+          setViewDialogOpen(false);
+          setSelectedPurchase(null);
+        }}
+        onEdit={handleEditFromView}
+      />
 
-              {selectedPurchase.densityCheck.correctedDensity > 0 && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Density Check</p>
-                  <div className="grid grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Physical Density</p>
-                      <p className="font-medium">{selectedPurchase.densityCheck.physicalDensity} kg/m³</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Temperature</p>
-                      <p className="font-medium">{selectedPurchase.densityCheck.physicalTemp}°C</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Corrected Density</p>
-                      <p className="font-medium">{selectedPurchase.densityCheck.correctedDensity.toFixed(1)} kg/m³</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Quality Status</p>
-                <span className={cn(
-                  "px-3 py-1 rounded text-sm font-bold",
-                  selectedPurchase.densityCheck.status === 'OK' 
-                    ? "bg-green-500/20 text-green-600"
-                    : "bg-destructive/20 text-destructive"
-                )}>
-                  {selectedPurchase.densityCheck.status}
-                </span>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Invoice Dialog */}
+      <InvoiceEditDialog
+        purchase={selectedPurchase}
+        isOpen={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setSelectedPurchase(null);
+        }}
+      />
     </div>
   );
 }
