@@ -1,10 +1,8 @@
 import { 
   TrendingUp, 
   Droplets, 
-  Receipt, 
   Wallet,
-  ArrowUpRight,
-  ArrowDownRight
+  Fuel
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
@@ -24,28 +22,69 @@ function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
-function formatNumber(num: number): string {
+function formatNumber(num: number, decimals: number = 2): string {
   return new Intl.NumberFormat('en-IN', {
-    maximumFractionDigits: 2,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(num);
 }
 
 export default function Dashboard() {
   const entries = usePetrolPumpStore((state) => state.entries);
 
+  // Get yesterday's entry
+  const yesterdayStats = useMemo(() => {
+    const yesterday = subDays(new Date(), 1);
+    const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
+    const yesterdayEntry = entries.find((e) => e.date === yesterdayStr);
+    
+    if (!yesterdayEntry) {
+      return {
+        totalSales: 0,
+        hasData: false,
+      };
+    }
+
+    const totals = calculateTotals(yesterdayEntry);
+    return {
+      totalSales: totals.totalFuelAmount + totals.totalLubeAmount,
+      hasData: true,
+    };
+  }, [entries]);
+
+  // Calculate last 7 days average
+  const last7DaysAverage = useMemo(() => {
+    let totalSales = 0;
+    let daysWithData = 0;
+    
+    for (let i = 1; i <= 7; i++) {
+      const date = subDays(new Date(), i);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const entry = entries.find((e) => e.date === dateStr);
+      
+      if (entry) {
+        const totals = calculateTotals(entry);
+        totalSales += totals.totalFuelAmount + totals.totalLubeAmount;
+        daysWithData++;
+      }
+    }
+    
+    return daysWithData > 0 ? totalSales / daysWithData : 0;
+  }, [entries]);
+
+  // Get today's entry for fuel breakdown and cash in hand
   const todayStats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
     const todayEntry = entries.find((e) => e.date === today);
     
     if (!todayEntry) {
       return {
-        totalSales: 0,
-        totalLiters: 0,
-        totalExpenses: 0,
+        fuelSales: { MS: { liters: 0, amount: 0 }, HSD: { liters: 0, amount: 0 }, POWER: { liters: 0, amount: 0 } },
         cashInHand: 0,
         hasTodayData: false,
       };
@@ -53,9 +92,7 @@ export default function Dashboard() {
 
     const totals = calculateTotals(todayEntry);
     return {
-      totalSales: totals.totalFuelAmount + totals.totalLubeAmount,
-      totalLiters: totals.totalFuelLiters,
-      totalExpenses: totals.totalExpenses,
+      fuelSales: totals.fuelSales,
       cashInHand: totals.cashInHand,
       hasTodayData: true,
     };
@@ -102,59 +139,81 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Cards - 5 Boxes */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* 1. Yesterday's Sales */}
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Today's Sales
+              Yesterday's Sales
             </CardTitle>
             <TrendingUp className="w-4 h-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {formatCurrency(todayStats.totalSales)}
+              {formatCurrency(yesterdayStats.totalSales)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {todayStats.hasTodayData ? 'Updated today' : 'No entry for today'}
+              7-day avg: {formatCurrency(last7DaysAverage)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-info">
+        {/* 2. MS Sold */}
+        <Card className="border-l-4 border-l-amber-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Liters Sold
+              MS Sold
             </CardTitle>
-            <Droplets className="w-4 h-4 text-info" />
+            <Fuel className="w-4 h-4 text-amber-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {formatNumber(todayStats.totalLiters)} L
+              {formatNumber(todayStats.fuelSales.MS.liters, 2)} L
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Total fuel dispensed
+              {formatCurrency(todayStats.fuelSales.MS.amount)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-destructive">
+        {/* 3. HSD Sold */}
+        <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Expenses
+              HSD Sold
             </CardTitle>
-            <Receipt className="w-4 h-4 text-destructive" />
+            <Droplets className="w-4 h-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {formatCurrency(todayStats.totalExpenses)}
+              {formatNumber(todayStats.fuelSales.HSD.liters, 2)} L
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Including UPI & deposits
+              {formatCurrency(todayStats.fuelSales.HSD.amount)}
             </p>
           </CardContent>
         </Card>
 
+        {/* 4. Power Sold */}
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Power Sold
+            </CardTitle>
+            <Droplets className="w-4 h-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground">
+              {formatNumber(todayStats.fuelSales.POWER.liters, 2)} L
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatCurrency(todayStats.fuelSales.POWER.amount)}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 5. Cash in Hand */}
         <Card className="border-l-4 border-l-success">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -167,7 +226,7 @@ export default function Dashboard() {
               {formatCurrency(todayStats.cashInHand)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Net balance
+              {todayStats.hasTodayData ? 'Updated today' : 'No entry for today'}
             </p>
           </CardContent>
         </Card>
@@ -254,7 +313,7 @@ export default function Dashboard() {
                           {formatCurrency(totals.totalFuelAmount + totals.totalLubeAmount)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {formatNumber(totals.totalFuelLiters)} L
+                          {formatNumber(totals.totalFuelLiters, 2)} L
                         </p>
                       </div>
                     </div>

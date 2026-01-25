@@ -47,6 +47,7 @@ interface PetrolPumpState {
   isFirstEntry: () => boolean;
   addDebtor: (name: string, contactNumber?: string, openingBalance?: number) => Debtor;
   updateDebtor: (id: string, data: Partial<Debtor>) => void;
+  deleteDebtor: (id: string) => void;
   getDebtors: () => Debtor[];
   validateNozzleReadings: () => { valid: boolean; errors: string[] };
   normalizeNozzleReadings: () => void;
@@ -442,6 +443,12 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
           debtors: state.debtors.map((d) =>
             d.id === id ? { ...d, ...data, updatedAt: new Date().toISOString() } : d
           ),
+        }));
+      },
+
+      deleteDebtor: (id) => {
+        set((state) => ({
+          debtors: state.debtors.filter((d) => d.id !== id),
         }));
       },
 
