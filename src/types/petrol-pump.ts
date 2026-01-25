@@ -46,15 +46,29 @@ export interface CreditSaleItem {
   debtorId: string;
   debtorName: string;
   amount: number;
+  remarks?: string; // Challan No. or vehicle details
 }
 
 // Debtor
 export interface Debtor {
   id: string;
   name: string;
+  contactNumber?: string;
+  openingBalance?: number; // For old dues before using this software
   totalOutstanding: number;
   createdAt: string;
   updatedAt: string;
+}
+
+// Ledger transaction for Tally-style view
+export interface LedgerTransaction {
+  date: string;
+  particulars: string;
+  remarks?: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  entryId?: string;
 }
 
 // Payment collection

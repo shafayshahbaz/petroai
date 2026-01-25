@@ -7,6 +7,8 @@ import { MainLayout } from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import DailyEntry from "./pages/DailyEntry";
 import SalesReport from "./pages/SalesReport";
+import Ledger from "./pages/Ledger";
+import Debtors from "./pages/Debtors";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +24,8 @@ const App = () => (
             <Route path="/" element={<Dashboard />} />
             <Route path="/daily-entry" element={<DailyEntry />} />
             <Route path="/sales-report" element={<SalesReport />} />
+            <Route path="/ledger" element={<Ledger />} />
+            <Route path="/debtors" element={<Debtors />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </MainLayout>

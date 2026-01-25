@@ -161,7 +161,10 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
             </div>
             {entry.creditSales?.map((cs) => (
               <div key={cs.id} className="flex justify-between text-amber-800">
-                <span>Credit: {cs.debtorName}</span>
+                <span className="flex flex-col">
+                  <span>Credit: {cs.debtorName}</span>
+                  {cs.remarks && <span className="text-xs text-gray-600">({cs.remarks})</span>}
+                </span>
                 <span className="font-mono">{formatCurrency(cs.amount)}</span>
               </div>
             ))}
