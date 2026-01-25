@@ -15,6 +15,7 @@ const generateId = () => Math.random().toString(36).substring(2, 15);
 interface PurchaseState {
   tanks: UndergroundTank[];
   purchases: PurchaseEntry[];
+  lastChamberCapacity: number; // Remember last used chamber capacity
   
   // Tank actions
   initializeTanks: () => void;
@@ -29,6 +30,7 @@ interface PurchaseState {
   updatePurchase: (id: string, data: Partial<PurchaseEntry>) => void;
   deletePurchase: (id: string) => void;
   getPurchases: () => PurchaseEntry[];
+  setLastChamberCapacity: (capacity: number) => void;
   
   // Finalize unloading - updates tank stock
   finalizeUnloading: (purchaseId: string, stockVerifications: StockVerification[]) => void;
@@ -39,6 +41,8 @@ export const usePurchaseStore = create<PurchaseState>()(
     (set, get) => ({
       tanks: [],
       purchases: [],
+      lastChamberCapacity: 3000, // Default 3000L
+
 
       initializeTanks: () => {
         const { tanks } = get();
@@ -127,6 +131,11 @@ export const usePurchaseStore = create<PurchaseState>()(
       getPurchases: () => {
         return get().purchases;
       },
+
+      setLastChamberCapacity: (capacity: number) => {
+        set({ lastChamberCapacity: capacity });
+      },
+
 
       finalizeUnloading: (purchaseId, stockVerifications) => {
         const { tanks, purchases } = get();
