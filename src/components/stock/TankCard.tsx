@@ -2,12 +2,13 @@ import { UndergroundTank } from '@/types/purchase';
 import { usePurchaseStore } from '@/store/purchase-store';
 import { formatLiters } from '@/lib/format';
 import { Button } from '@/components/ui/button';
-import { Link2, Droplets } from 'lucide-react';
+import { Link2, Droplets, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TankCardProps {
   tank: UndergroundTank;
   onManageConnections: () => void;
+  onEditTank: () => void;
 }
 
 // Get fuel color based on type
@@ -24,7 +25,7 @@ const getFuelColor = (fuelType: string) => {
   }
 };
 
-export function TankCard({ tank, onManageConnections }: TankCardProps) {
+export function TankCard({ tank, onManageConnections, onEditTank }: TankCardProps) {
   const { getNozzlesForTank } = usePurchaseStore();
   const connectedNozzles = getNozzlesForTank ? getNozzlesForTank(tank.id) : [];
   
@@ -162,15 +163,25 @@ export function TankCard({ tank, onManageConnections }: TankCardProps) {
       </div>
 
       {/* Actions */}
-      <div className="p-4 pt-2 border-t">
-        <Button 
-          variant="outline" 
-          className="w-full" 
-          onClick={onManageConnections}
-        >
-          <Link2 className="w-4 h-4 mr-2" />
-          Manage Connections
-        </Button>
+      <div className="p-4 pt-2 border-t space-y-2">
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="flex-1" 
+            onClick={onManageConnections}
+          >
+            <Link2 className="w-4 h-4 mr-2" />
+            Connections
+          </Button>
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={onEditTank}
+            title="Edit Capacity"
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       <style>{`

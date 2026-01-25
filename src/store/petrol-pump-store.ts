@@ -55,6 +55,7 @@ interface PetrolPumpState {
   getDebtors: () => Debtor[];
   validateNozzleReadings: () => { valid: boolean; errors: string[] };
   normalizeNozzleReadings: () => void;
+  clearAllData: () => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -528,6 +529,14 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
               })),
             },
           };
+        });
+      },
+
+      clearAllData: () => {
+        set({
+          entries: [],
+          debtors: [],
+          currentEntry: null,
         });
       },
     }),

@@ -18,6 +18,7 @@ interface SettingsState {
   updateBusinessProfile: (profile: Partial<BusinessProfile>) => void;
   setLastBackupDate: (date: string) => void;
   setAccountCreatedAt: (date: string) => void;
+  clearAllData: () => void;
   
   // Backup/Restore
   exportAllData: () => string;
@@ -49,6 +50,20 @@ export const useSettingsStore = create<SettingsState>()(
 
       setAccountCreatedAt: (date) => {
         set({ accountCreatedAt: date });
+      },
+
+      clearAllData: () => {
+        set({
+          businessProfile: {
+            companyName: '',
+            customerId: '',
+            address: '',
+            gstNumber: '',
+            phone: '',
+          },
+          lastBackupDate: null,
+          accountCreatedAt: null,
+        });
       },
 
       exportAllData: () => {
