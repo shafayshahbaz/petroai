@@ -18,7 +18,10 @@ import {
   DEFAULT_NOZZLE_CONFIG,
   DEFAULT_TANK_CAPACITIES,
   FuelType,
-  DailyTotals
+  DailyTotals,
+  Staff,
+  ShiftEntry,
+  ShiftNozzleReading
 } from '@/types/petrol-pump';
 
 interface PetrolPumpState {
@@ -28,6 +31,10 @@ interface PetrolPumpState {
   // Dynamic Infrastructure
   tanks: Tank[];
   machines: Machine[];
+  
+  // Staff & Shift Entries
+  staff: Staff[];
+  shiftEntries: ShiftEntry[];
   
   // Legacy tank stocks (for backwards compatibility)
   tankStocks: TankStock[];
@@ -103,6 +110,17 @@ interface PetrolPumpState {
   
   // Helper to get all nozzles from machines
   getAllNozzles: () => Array<MachineNozzle & { machineId: string; machineName: string }>;
+  
+  // Staff Actions
+  addStaff: (name: string) => void;
+  updateStaff: (id: string, data: Partial<Staff>) => void;
+  deleteStaff: (id: string) => void;
+  
+  // Shift Entry Actions
+  addShiftEntry: (entry: Omit<ShiftEntry, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateShiftEntry: (id: string, data: Partial<ShiftEntry>) => void;
+  deleteShiftEntry: (id: string) => void;
+  getLastShiftClosingReadings: (beforeDate?: string) => Record<string, number>;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -213,6 +231,8 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
       companySettings: defaultCompanySettings,
       tanks: defaultTanks,
       machines: defaultMachines,
+      staff: [],
+      shiftEntries: [],
       tankStocks: defaultTankStocks,
       initialNozzleReadings: {},
       initialCashBalance: 0,
@@ -839,6 +859,121 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         });
         
         return allNozzles;
+      },
+
+      // Staff Management
+      addStaff: (name) => {
+        const newStaff: Staff = {
+          id: generateId(),
+          name,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          staff: [...state.staff, newStaff],
+        }));
+      },
+
+      updateStaff: (id, data) => {
+        set((state) => ({
+          staff: state.staff.map((s) => (s.id === id ? { ...s, ...data } : s)),
+        }));
+      },
+
+      deleteStaff: (id) => {
+        set((state) => ({
+          staff: state.staff.map((s) => (s.id === id ? { ...s, isActive: false } : s)),
+        }));
+      },
+
+      // Shift Entry Management
+      addShiftEntry: (entryData) => {
+        const newEntry: ShiftEntry = {
+          ...entryData,
+          id: generateId(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        // Update tank stocks based on shift sales
+        set((state) => {
+          const salesByTank: Record<string, number> = {};
+          
+          newEntry.nozzleReadings.forEach((reading) => {
+            if (reading.tankId) {
+              salesByTank[reading.tankId] = (salesByTank[reading.tankId] || 0) + reading.liters;
+            }
+          });
+          
+          const updatedTanks = state.tanks.map((tank) => {
+            const soldLiters = salesByTank[tank.id] || 0;
+            return {
+              ...tank,
+              currentStock: Math.max(0, tank.currentStock - soldLiters),
+            };
+          });
+          
+          return {
+            shiftEntries: [...state.shiftEntries, newEntry],
+            tanks: updatedTanks,
+          };
+        });
+      },
+
+      updateShiftEntry: (id, data) => {
+        set((state) => ({
+          shiftEntries: state.shiftEntries.map((e) =>
+            e.id === id ? { ...e, ...data, updatedAt: new Date().toISOString() } : e
+          ),
+        }));
+      },
+
+      deleteShiftEntry: (id) => {
+        set((state) => ({
+          shiftEntries: state.shiftEntries.filter((e) => e.id !== id),
+        }));
+      },
+
+      getLastShiftClosingReadings: (beforeDate) => {
+        const { shiftEntries, initialNozzleReadings } = get();
+        if (shiftEntries.length === 0) return initialNozzleReadings;
+
+        let filteredEntries = [...shiftEntries];
+        if (beforeDate) {
+          filteredEntries = shiftEntries.filter(
+            (e) => new Date(e.businessDate) < new Date(beforeDate)
+          );
+        }
+        
+        if (filteredEntries.length === 0) return initialNozzleReadings;
+
+        // Sort by date and createdAt to get the latest
+        const sortedEntries = filteredEntries.sort((a, b) => {
+          const dateCompare = new Date(b.businessDate).getTime() - new Date(a.businessDate).getTime();
+          if (dateCompare !== 0) return dateCompare;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        
+        // Collect latest closing readings from all entries
+        const readings: Record<string, number> = { ...initialNozzleReadings };
+        
+        // Go through entries to find the latest reading for each nozzle
+        sortedEntries.forEach((entry) => {
+          entry.nozzleReadings.forEach((nr) => {
+            if (readings[nr.nozzleId] === undefined || readings[nr.nozzleId] === 0) {
+              readings[nr.nozzleId] = nr.closingReading;
+            }
+          });
+        });
+        
+        // For nozzles used in the most recent entry, use those closing readings
+        if (sortedEntries.length > 0) {
+          sortedEntries[0].nozzleReadings.forEach((nr) => {
+            readings[nr.nozzleId] = nr.closingReading;
+          });
+        }
+
+        return readings;
       },
     }),
     {

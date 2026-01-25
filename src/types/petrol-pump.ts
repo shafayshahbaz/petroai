@@ -116,6 +116,53 @@ export interface PurchaseInvoice {
   createdAt: string;
 }
 
+// Staff member
+export interface Staff {
+  id: string;
+  name: string;
+  phone?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+// Shift Entry - Sales by Person
+export interface ShiftEntry {
+  id: string;
+  businessDate: string; // The business date (e.g., 24th = 23rd 7PM to 24th 7PM)
+  staffId: string;
+  staffName: string;
+  // Nozzle readings for this shift
+  nozzleReadings: ShiftNozzleReading[];
+  // Sales calculation
+  totalLiters: number;
+  totalAmount: number;
+  // Deductions
+  upiCollection: number; // Staff's QR collection
+  expenses: number; // Small expenses paid by staff
+  salaryAdvance: number; // Cash taken for personal use
+  creditSales: number; // Credit given to customers
+  // Net result
+  netCashToHandover: number;
+  // Metadata
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Nozzle reading within a shift
+export interface ShiftNozzleReading {
+  nozzleId: string;
+  nozzleLabel: string;
+  machineId: string;
+  machineName: string;
+  fuelType: FuelType;
+  tankId: string;
+  openingReading: number;
+  closingReading: number;
+  rate: number;
+  liters: number;
+  amount: number;
+}
+
 // Tank/Stock configuration (legacy - for backwards compatibility)
 export interface TankStock {
   fuelType: FuelType;

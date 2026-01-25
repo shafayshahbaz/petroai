@@ -42,6 +42,7 @@ export default function StockPurchases() {
     invoiceNumber: '',
     supplier: '',
     fuelType: 'MS' as FuelType,
+    tankId: '',
     quantityKL: 0,
     basicRate: 0,
     vatPercentage: 5,
@@ -52,7 +53,10 @@ export default function StockPurchases() {
   });
 
   const { toast } = useToast();
-  const { purchases, tankStocks, addPurchase, deletePurchase } = usePetrolPumpStore();
+  const { purchases, tanks, tankStocks, addPurchase, deletePurchase } = usePetrolPumpStore();
+
+  // Filter tanks by selected fuel type
+  const compatibleTanks = tanks.filter((t) => t.fuelType === formData.fuelType);
 
   const densityDifference = Math.abs(formData.challanDensity - formData.measuredDensity);
   const isQualityAccepted = densityDifference <= 3.0;
@@ -74,6 +78,7 @@ export default function StockPurchases() {
       date: format(purchaseDate, 'yyyy-MM-dd'),
       supplier: formData.supplier,
       fuelType: formData.fuelType,
+      tankId: formData.tankId || compatibleTanks[0]?.id,
       quantityKL: formData.quantityKL,
       basicRate: formData.basicRate,
       vatPercentage: formData.vatPercentage,
@@ -92,6 +97,7 @@ export default function StockPurchases() {
       invoiceNumber: '',
       supplier: '',
       fuelType: 'MS',
+      tankId: '',
       quantityKL: 0,
       basicRate: 0,
       vatPercentage: 5,
@@ -176,12 +182,12 @@ export default function StockPurchases() {
               </div>
 
               {/* Fuel Details */}
-              <div className="grid gap-4 sm:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Fuel Type</Label>
                   <Select
                     value={formData.fuelType}
-                    onValueChange={(value) => setFormData({ ...formData, fuelType: value as FuelType })}
+                    onValueChange={(value) => setFormData({ ...formData, fuelType: value as FuelType, tankId: '' })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -193,6 +199,27 @@ export default function StockPurchases() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Destination Tank</Label>
+                  <Select
+                    value={formData.tankId}
+                    onValueChange={(value) => setFormData({ ...formData, tankId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select tank" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {compatibleTanks.map((tank) => (
+                        <SelectItem key={tank.id} value={tank.id}>
+                          {tank.name} ({tank.currentStock.toLocaleString()} L)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Quantity (KL)</Label>
                   <Input
