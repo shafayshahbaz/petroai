@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Lock } from 'lucide-react';
 import { UndergroundTank } from '@/types/purchase';
 import { usePurchaseStore } from '@/store/purchase-store';
 import { formatLiters } from '@/lib/format';
@@ -17,11 +17,13 @@ interface EditTankModalProps {
 
 export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
   const { updateTank } = usePurchaseStore();
+  const [name, setName] = useState('');
   const [capacity, setCapacity] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (tank) {
+      setName(tank.name);
       setCapacity(tank.capacity);
       setError(null);
     }
@@ -29,38 +31,94 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
 
   if (!tank) return null;
 
-  const handleCapacityChange = (value: number) => {
-    setCapacity(value);
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (!value.trim()) {
+      setError('Tank name is required');
+    } else {
+      // Clear name error, but check capacity
+      validateCapacity(capacity);
+    }
+  };
+
+  const validateCapacity = (value: number) => {
     if (value < tank.currentStock) {
       setError(`Capacity cannot be less than current stock (${formatLiters(tank.currentStock)} L)`);
     } else if (value <= 0) {
       setError('Capacity must be greater than 0');
+    } else if (!name.trim()) {
+      setError('Tank name is required');
     } else {
       setError(null);
     }
   };
 
-  const handleSave = () => {
-    if (error || capacity <= 0) return;
+  const handleCapacityChange = (value: number) => {
+    setCapacity(value);
+    validateCapacity(value);
+  };
 
-    updateTank(tank.id, { capacity });
-    toast.success(`${tank.name} capacity updated to ${formatLiters(capacity)} L`);
+  const handleSave = () => {
+    if (error || capacity <= 0 || !name.trim()) return;
+
+    updateTank(tank.id, { name: name.trim(), capacity });
+    toast.success(`${name.trim()} updated successfully`);
     onClose();
   };
 
   const fillPercentage = capacity > 0 ? Math.min(100, (tank.currentStock / capacity) * 100) : 0;
 
+  // Product type is locked if tank has stock
+  const isProductLocked = tank.currentStock > 0;
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit Tank Capacity</DialogTitle>
+          <DialogTitle>Edit Tank Details</DialogTitle>
           <DialogDescription>
-            Update the total capacity for <strong>{tank.name}</strong>
+            Update the name and capacity for this tank
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Tank Name */}
+          <div className="space-y-2">
+            <Label htmlFor="tankName">Tank Name</Label>
+            <Input
+              id="tankName"
+              type="text"
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="e.g., MS Tank 1"
+              className="h-12"
+            />
+          </div>
+
+          {/* Product Type (Locked if has stock) */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              Product Type
+              {isProductLocked && <Lock className="w-3 h-3 text-muted-foreground" />}
+            </Label>
+            <div className="flex items-center gap-2">
+              <div 
+                className="h-12 flex-1 rounded-md border bg-muted px-3 flex items-center"
+                style={{ 
+                  borderColor: tank.fuelType === 'MS' ? '#DB9121' : tank.fuelType === 'HSD' ? '#2A71B8' : '#E8665D',
+                  borderWidth: '2px'
+                }}
+              >
+                <span className="font-medium">{tank.fuelType}</span>
+                {isProductLocked && (
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    Cannot change while tank has stock
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Current Stock Info */}
           <div className="p-3 rounded-lg bg-muted/50 border">
             <div className="flex justify-between text-sm">
@@ -116,7 +174,7 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!!error || capacity <= 0}>
+          <Button onClick={handleSave} disabled={!!error || capacity <= 0 || !name.trim()}>
             Save Changes
           </Button>
         </DialogFooter>

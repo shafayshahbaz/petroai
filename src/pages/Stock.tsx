@@ -4,6 +4,7 @@ import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { TankCard } from '@/components/stock/TankCard';
 import { TankNozzleModal } from '@/components/stock/TankNozzleModal';
 import { EditTankModal } from '@/components/stock/EditTankModal';
+import { DeleteTankDialog } from '@/components/stock/DeleteTankDialog';
 import { Button } from '@/components/ui/button';
 import { Plus, Database } from 'lucide-react';
 import { UndergroundTank } from '@/types/purchase';
@@ -13,6 +14,7 @@ export default function Stock() {
   const [selectedTank, setSelectedTank] = useState<UndergroundTank | null>(null);
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     initializeTanks();
@@ -27,6 +29,11 @@ export default function Stock() {
   const handleEditTank = (tank: UndergroundTank) => {
     setSelectedTank(tank);
     setIsEditModalOpen(true);
+  };
+
+  const handleDeleteTank = (tank: UndergroundTank) => {
+    setSelectedTank(tank);
+    setIsDeleteDialogOpen(true);
   };
 
   return (
@@ -48,6 +55,7 @@ export default function Stock() {
               tank={tank}
               onManageConnections={() => handleManageConnections(tank)}
               onEditTank={() => handleEditTank(tank)}
+              onDeleteTank={() => handleDeleteTank(tank)}
             />
           ))}
         </div>
@@ -79,6 +87,16 @@ export default function Stock() {
         isOpen={isEditModalOpen}
         onClose={() => {
           setIsEditModalOpen(false);
+          setSelectedTank(null);
+        }}
+      />
+
+      {/* Delete Tank Dialog */}
+      <DeleteTankDialog
+        tank={selectedTank}
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false);
           setSelectedTank(null);
         }}
       />

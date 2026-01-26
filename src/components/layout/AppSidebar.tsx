@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -10,12 +10,14 @@ import {
   Users,
   Truck,
   Database,
-  Settings
+  Settings,
+  LogOut
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useSettingsStore } from '@/store/settings-store';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -30,11 +32,27 @@ const navItems = [
 
 export function AppSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { businessProfile } = useSettingsStore();
+  const { signOut } = useAuth();
 
   // Use business name from settings, fallback to generic name
   const companyName = businessProfile.companyName || 'Fuel Management';
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await signOut();
+      // Replace the current history entry to prevent back navigation
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <>
@@ -97,8 +115,24 @@ export function AppSidebar() {
           })}
         </nav>
 
+        {/* Logout Button */}
+        <div className="p-3 border-t border-sidebar-border">
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all w-full",
+              "text-sidebar-foreground/80 hover:bg-destructive/10 hover:text-destructive",
+              "disabled:opacity-50 disabled:cursor-not-allowed"
+            )}
+          >
+            <LogOut className="w-5 h-5 shrink-0" />
+            {!isCollapsed && <span>{isLoggingOut ? 'Logging out...' : 'Log Out'}</span>}
+          </button>
+        </div>
+
         {/* Footer */}
-        <div className="p-4 border-t border-sidebar-border">
+        <div className="p-4 pt-2 border-t border-sidebar-border">
           {!isCollapsed && (
             <p className="text-xs text-sidebar-foreground/50 text-center">
               © 2025 Petrol Pump Management

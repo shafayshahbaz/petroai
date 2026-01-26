@@ -2,13 +2,14 @@ import { UndergroundTank } from '@/types/purchase';
 import { usePurchaseStore } from '@/store/purchase-store';
 import { formatLiters } from '@/lib/format';
 import { Button } from '@/components/ui/button';
-import { Link2, Droplets, Pencil } from 'lucide-react';
+import { Link2, Droplets, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TankCardProps {
   tank: UndergroundTank;
   onManageConnections: () => void;
   onEditTank: () => void;
+  onDeleteTank: () => void;
 }
 
 // Get fuel color based on type
@@ -25,7 +26,7 @@ const getFuelColor = (fuelType: string) => {
   }
 };
 
-export function TankCard({ tank, onManageConnections, onEditTank }: TankCardProps) {
+export function TankCard({ tank, onManageConnections, onEditTank, onDeleteTank }: TankCardProps) {
   const { getNozzlesForTank } = usePurchaseStore();
   const connectedNozzles = getNozzlesForTank ? getNozzlesForTank(tank.id) : [];
   
@@ -177,9 +178,18 @@ export function TankCard({ tank, onManageConnections, onEditTank }: TankCardProp
             variant="outline" 
             size="icon"
             onClick={onEditTank}
-            title="Edit Capacity"
+            title="Edit Tank"
           >
             <Pencil className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={onDeleteTank}
+            title="Delete Tank"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       </div>
