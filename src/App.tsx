@@ -22,7 +22,6 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
-import SetupWizard from "./pages/SetupWizard";
 
 const queryClient = new QueryClient();
 
@@ -44,16 +43,6 @@ const App = () => (
               element={
                 <ProtectedRoute requireAdmin>
                   <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            
-            {/* Setup wizard */}
-            <Route
-              path="/setup"
-              element={
-                <ProtectedRoute>
-                  <SetupWizard />
                 </ProtectedRoute>
               }
             />
