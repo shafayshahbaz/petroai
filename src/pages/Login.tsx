@@ -45,7 +45,7 @@ export default function Login() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   
-  const { signIn, signInWithGoogle, user, role, isFirstLogin } = useAuth();
+  const { signIn, signInWithGoogle, user, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -53,13 +53,11 @@ export default function Login() {
     if (user && role) {
       if (role === 'super_admin') {
         navigate('/admin');
-      } else if (isFirstLogin) {
-        navigate('/setup');
       } else {
         navigate('/');
       }
     }
-  }, [user, role, isFirstLogin, navigate]);
+  }, [user, role, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
