@@ -17,12 +17,21 @@ export interface TankNozzleConnection {
   tankId: string;
 }
 
+// Registered nozzle (user-created)
+export interface RegisteredNozzle {
+  id: string;
+  label: string;
+  fuelType: FuelType;
+  createdAt: string;
+}
+
 interface PurchaseState {
   tanks: UndergroundTank[];
   purchases: PurchaseEntry[];
   lastChamberCapacity: number;
   tankNozzleConnections: TankNozzleConnection[];
   lastPrices: { MS: number; HSD: number; POWER: number };
+  registeredNozzles: RegisteredNozzle[];
   
   // Tank actions
   initializeTanks: () => void;
@@ -31,6 +40,11 @@ interface PurchaseState {
   deleteTank: (id: string) => void;
   updateTankStock: (id: string, newStock: number) => void;
   getTanksByFuelType: (fuelType: FuelType) => UndergroundTank[];
+  
+  // Nozzle registration actions
+  registerNozzle: (label: string, fuelType: FuelType) => RegisteredNozzle;
+  unregisterNozzle: (nozzleId: string) => void;
+  getRegisteredNozzles: () => RegisteredNozzle[];
   
   // Tank-Nozzle connection actions
   connectNozzleToTank: (nozzleId: string, tankId: string) => void;
@@ -70,10 +84,39 @@ export const usePurchaseStore = create<PurchaseState>()(
       lastChamberCapacity: 3000,
       tankNozzleConnections: [],
       lastPrices: { MS: 0, HSD: 0, POWER: 0 },
+      registeredNozzles: [],
 
       // initializeTanks is now a no-op - new accounts start blank
       initializeTanks: () => {
         // Do nothing - new accounts should have 0 tanks and go through Setup Wizard
+      },
+
+      // Register a new nozzle (user-created)
+      registerNozzle: (label: string, fuelType: FuelType) => {
+        const now = new Date().toISOString();
+        const nozzleId = `nozzle-${fuelType}-${label.trim().replace(/\s+/g, '-')}`;
+        const newNozzle: RegisteredNozzle = {
+          id: nozzleId,
+          label: label.trim(),
+          fuelType,
+          createdAt: now,
+        };
+        set((state) => ({
+          registeredNozzles: [...state.registeredNozzles, newNozzle],
+        }));
+        return newNozzle;
+      },
+
+      unregisterNozzle: (nozzleId: string) => {
+        // Also disconnect from any tank
+        get().disconnectNozzle(nozzleId);
+        set((state) => ({
+          registeredNozzles: state.registeredNozzles.filter((n) => n.id !== nozzleId),
+        }));
+      },
+
+      getRegisteredNozzles: () => {
+        return get().registeredNozzles;
       },
 
       addTank: (tankData) => {
@@ -326,6 +369,7 @@ export const usePurchaseStore = create<PurchaseState>()(
           lastChamberCapacity: 3000,
           tankNozzleConnections: [],
           lastPrices: { MS: 0, HSD: 0, POWER: 0 },
+          registeredNozzles: [],
         });
       },
     }),

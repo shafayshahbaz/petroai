@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/dialog';
 import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
 import { useToast } from '@/hooks/use-toast';
-import { DailyEntry, DEFAULT_NOZZLE_CONFIG, FuelType } from '@/types/petrol-pump';
+import { DailyEntry, FuelType } from '@/types/petrol-pump';
 import { PrintableReport } from '@/components/report/PrintableReport';
 
 function formatCurrency(amount: number): string {

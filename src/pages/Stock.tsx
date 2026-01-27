@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { usePurchaseStore } from '@/store/purchase-store';
-import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { TankCard } from '@/components/stock/TankCard';
 import { TankNozzleModal } from '@/components/stock/TankNozzleModal';
 import { EditTankModal } from '@/components/stock/EditTankModal';
@@ -8,11 +7,11 @@ import { DeleteTankDialog } from '@/components/stock/DeleteTankDialog';
 import { AddTankModal } from '@/components/stock/AddTankModal';
 import { AddNozzleModal } from '@/components/stock/AddNozzleModal';
 import { Button } from '@/components/ui/button';
-import { Plus, Database, Fuel } from 'lucide-react';
+import { Plus, Database, Fuel, Rocket } from 'lucide-react';
 import { UndergroundTank } from '@/types/purchase';
 
 export default function Stock() {
-  const { tanks, initializeTanks } = usePurchaseStore();
+  const { tanks, registeredNozzles, initializeTanks } = usePurchaseStore();
   const [selectedTank, setSelectedTank] = useState<UndergroundTank | null>(null);
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -20,10 +19,22 @@ export default function Stock() {
   const [isAddTankModalOpen, setIsAddTankModalOpen] = useState(false);
   const [isAddNozzleModalOpen, setIsAddNozzleModalOpen] = useState(false);
 
+  // Auto-trigger setup if no tanks AND no nozzles exist
+  const isEmptyState = tanks.length === 0 && registeredNozzles.length === 0;
+
   useEffect(() => {
     initializeTanks();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [initializeTanks]);
+
+  // Auto-open Add Tank modal for first-time setup
+  useEffect(() => {
+    if (isEmptyState) {
+      // Small delay to ensure component is mounted
+      const timer = setTimeout(() => setIsAddTankModalOpen(true), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isEmptyState]);
 
   const handleManageConnections = (tank: UndergroundTank) => {
     setSelectedTank(tank);
@@ -75,17 +86,23 @@ export default function Stock() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="p-4 rounded-full bg-muted mb-4">
-            <Database className="w-12 h-12 text-muted-foreground" />
+          <div className="p-4 rounded-full bg-primary/10 mb-4">
+            <Rocket className="w-12 h-12 text-primary" />
           </div>
-          <h3 className="text-lg font-medium mb-2">No Tanks Configured</h3>
-          <p className="text-muted-foreground max-w-md mb-4">
-            Click "Add Tank" above to create your first underground storage tank.
+          <h3 className="text-xl font-semibold mb-2">Let's Set Up Your Station!</h3>
+          <p className="text-muted-foreground max-w-md mb-6">
+            Start by adding your underground storage tanks. Then add nozzles and connect them to track fuel sales automatically.
           </p>
-          <Button onClick={() => setIsAddTankModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Your First Tank
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button onClick={() => setIsAddTankModalOpen(true)} size="lg">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Your First Tank
+            </Button>
+            <Button variant="outline" onClick={() => setIsAddNozzleModalOpen(true)} size="lg">
+              <Fuel className="w-4 h-4 mr-2" />
+              Add a Nozzle
+            </Button>
+          </div>
         </div>
       )}
 

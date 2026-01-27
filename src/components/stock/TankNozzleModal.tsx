@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { usePurchaseStore } from '@/store/purchase-store';
 import { UndergroundTank } from '@/types/purchase';
-import { DEFAULT_NOZZLE_CONFIG } from '@/types/petrol-pump';
+import { FuelType } from '@/types/petrol-pump';
 import { Link2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -18,19 +18,22 @@ interface TankNozzleModalProps {
 }
 
 export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps) {
-  const { tanks, tankNozzleConnections, connectNozzleToTank, disconnectNozzle } = usePurchaseStore();
+  const { tanks, tankNozzleConnections, connectNozzleToTank, disconnectNozzle, getRegisteredNozzles } = usePurchaseStore();
   
   const [selectedNozzles, setSelectedNozzles] = useState<string[]>([]);
   const [confirmMove, setConfirmMove] = useState<{ nozzleId: string; fromTankName: string } | null>(null);
   
-  // Get nozzles that match this tank's fuel type
-  const compatibleNozzles = DEFAULT_NOZZLE_CONFIG.filter(
-    (config) => config.fuelType === tank?.fuelType
-  ).map((config) => ({
-    id: `nozzle-${config.fuelType}-${config.label}`,
-    label: config.label,
-    fuelType: config.fuelType,
-  }));
+  // Get nozzles that match this tank's fuel type from registered nozzles
+  const compatibleNozzles = useMemo(() => {
+    const registeredNozzles = getRegisteredNozzles?.() || [];
+    return registeredNozzles
+      .filter((nozzle) => nozzle.fuelType === tank?.fuelType)
+      .map((nozzle) => ({
+        id: nozzle.id,
+        label: nozzle.label,
+        fuelType: nozzle.fuelType,
+      }));
+  }, [tank?.fuelType, getRegisteredNozzles]);
 
   // Load currently connected nozzles when modal opens
   useEffect(() => {
@@ -117,9 +120,14 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
 
           <div className="py-4 space-y-3">
             {compatibleNozzles.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">
-                No compatible nozzles found for {tank.fuelType}
-              </p>
+              <div className="text-center py-6 space-y-2">
+                <p className="text-muted-foreground">
+                  No {tank.fuelType} nozzles found.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Create nozzles using the "Add Nozzle" button on the Stock page first.
+                </p>
+              </div>
             ) : (
               compatibleNozzles.map((nozzle) => {
                 const connectedTank = getConnectedTank(nozzle.id);

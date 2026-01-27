@@ -15,7 +15,7 @@ interface AddNozzleModalProps {
 }
 
 export function AddNozzleModal({ isOpen, onClose }: AddNozzleModalProps) {
-  const { tanks, connectNozzleToTank } = usePurchaseStore();
+  const { tanks, connectNozzleToTank, registerNozzle, registeredNozzles } = usePurchaseStore();
   
   const [name, setName] = useState('');
   const [fuelType, setFuelType] = useState<FuelType>('MS');
@@ -31,12 +31,20 @@ export function AddNozzleModal({ isOpen, onClose }: AddNozzleModalProps) {
       return;
     }
 
-    // Create unique nozzle ID based on name
+    // Check for duplicate nozzle names
     const nozzleId = `nozzle-${fuelType}-${name.trim().replace(/\s+/g, '-')}`;
+    const exists = registeredNozzles.some(n => n.id === nozzleId);
+    if (exists) {
+      setErrors({ name: 'A nozzle with this name and fuel type already exists' });
+      return;
+    }
+
+    // Register the nozzle first
+    const newNozzle = registerNozzle(name.trim(), fuelType);
 
     // If a tank is selected, connect the nozzle to it
     if (selectedTankId) {
-      connectNozzleToTank(nozzleId, selectedTankId);
+      connectNozzleToTank(newNozzle.id, selectedTankId);
       const tank = tanks.find(t => t.id === selectedTankId);
       toast.success(`${name} created and connected to ${tank?.name}`, {
         description: 'The nozzle will appear in Daily Entry when you create a new entry.'

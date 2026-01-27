@@ -10,7 +10,6 @@ import {
   CreditSaleItem,
   Debtor,
   DEFAULT_FUEL_RATES,
-  DEFAULT_NOZZLE_CONFIG,
   FuelType
 } from '@/types/petrol-pump';
 import { usePurchaseStore } from '@/store/purchase-store';
@@ -60,9 +59,13 @@ interface PetrolPumpState {
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
-const createDefaultNozzles = (lastReadings: Record<string, number>): Nozzle[] => {
-  return DEFAULT_NOZZLE_CONFIG.map((config, index) => {
-    const id = `nozzle-${config.fuelType}-${config.label}`;
+// Create nozzles dynamically from registered nozzles in purchase store
+const createDynamicNozzles = (lastReadings: Record<string, number>): Nozzle[] => {
+  const purchaseStore = usePurchaseStoreRef();
+  const registeredNozzles = purchaseStore.getRegisteredNozzles?.() || [];
+  
+  return registeredNozzles.map((config, index) => {
+    const id = config.id;
     return {
       id,
       machineId: Math.floor(index / 2) + 1,
@@ -91,7 +94,7 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
             date,
             shiftName,
             fuelRates: { ...DEFAULT_FUEL_RATES },
-            nozzles: createDefaultNozzles(lastReadings),
+            nozzles: createDynamicNozzles(lastReadings),
             lubeItems: [],
             expenses: [],
             incomes: [],
@@ -504,10 +507,10 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
           // Only validate if closing reading was entered (not empty/0 when opening is 0)
           if (nozzle.closingReading > 0 || nozzle.openingReading > 0) {
             if (nozzle.closingReading < nozzle.openingReading) {
-              const config = DEFAULT_NOZZLE_CONFIG.find((c) => 
-                `nozzle-${c.fuelType}-${c.label}` === nozzle.id
-              );
-              errors.push(`${nozzle.fuelType} ${config?.label || nozzle.id}: Closing reading cannot be less than opening reading`);
+              // Extract label from nozzle ID: "nozzle-MS-Pump-5" -> "Pump-5"
+              const parts = nozzle.id.split('-');
+              const label = parts.length >= 3 ? parts.slice(2).join('-') : nozzle.id;
+              errors.push(`${nozzle.fuelType} ${label}: Closing reading cannot be less than opening reading`);
             }
           }
         });
