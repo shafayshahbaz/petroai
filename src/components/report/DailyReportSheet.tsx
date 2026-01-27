@@ -30,10 +30,10 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
     HSD: entry.nozzles.filter((n) => n.fuelType === 'HSD'),
   };
 
-  const fuelLabels: Record<FuelType, string[]> = {
-    MS: ['N1', 'N2', 'A1', 'A2'],
-    POWER: ['A1', 'B1', 'A2'],
-    HSD: ['A2', 'B2', 'A1'],
+  // Helper to extract label from nozzle ID
+  const getNozzleLabel = (nozzleId: string, index: number): string => {
+    const parts = nozzleId.split('-');
+    return parts.length >= 3 ? parts.slice(2).join('-') : `N${index + 1}`;
   };
 
   const getFuelRate = (fuelType: FuelType): number => {
@@ -67,7 +67,6 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
       <div className="mb-2">
         {(['MS', 'POWER', 'HSD'] as FuelType[]).map((fuelType) => {
           const nozzles = groupedNozzles[fuelType];
-          const labels = fuelLabels[fuelType];
           const totalLiters = nozzles.reduce((sum, n) => sum + Math.max(0, n.closingReading - n.openingReading), 0);
           const testing = entry.testingDeduction?.[fuelType] || 0;
           const netLiters = totalLiters - testing;
@@ -79,8 +78,8 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
                 <thead>
                   <tr>
                     <th className="text-left" style={{ width: '80px' }}></th>
-                    {labels.slice(0, nozzles.length).map((label) => (
-                      <th key={label} className="text-right px-1 font-bold">{label}</th>
+                    {nozzles.map((nozzle, idx) => (
+                      <th key={nozzle.id} className="text-right px-1 font-bold">{getNozzleLabel(nozzle.id, idx)}</th>
                     ))}
                   </tr>
                 </thead>

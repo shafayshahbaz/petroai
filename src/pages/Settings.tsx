@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/store/settings-store';
 import { usePurchaseStore } from '@/store/purchase-store';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { BackupRestoreSection } from '@/components/backup/BackupManager';
+import { PasswordChangeSection } from '@/components/settings/PasswordChangeSection';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -143,6 +144,11 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+
+      <Separator />
+
+      {/* Security - Password Change */}
+      <PasswordChangeSection />
 
       <Separator />
 

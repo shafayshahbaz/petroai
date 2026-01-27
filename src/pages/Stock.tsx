@@ -5,8 +5,10 @@ import { TankCard } from '@/components/stock/TankCard';
 import { TankNozzleModal } from '@/components/stock/TankNozzleModal';
 import { EditTankModal } from '@/components/stock/EditTankModal';
 import { DeleteTankDialog } from '@/components/stock/DeleteTankDialog';
+import { AddTankModal } from '@/components/stock/AddTankModal';
+import { AddNozzleModal } from '@/components/stock/AddNozzleModal';
 import { Button } from '@/components/ui/button';
-import { Plus, Database } from 'lucide-react';
+import { Plus, Database, Fuel } from 'lucide-react';
 import { UndergroundTank } from '@/types/purchase';
 
 export default function Stock() {
@@ -15,6 +17,8 @@ export default function Stock() {
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isAddTankModalOpen, setIsAddTankModalOpen] = useState(false);
+  const [isAddNozzleModalOpen, setIsAddNozzleModalOpen] = useState(false);
 
   useEffect(() => {
     initializeTanks();
@@ -38,11 +42,21 @@ export default function Stock() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header with Action Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Stock & Tank Manager</h1>
           <p className="text-muted-foreground">Monitor tank levels and manage nozzle connections</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setIsAddTankModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Tank
+          </Button>
+          <Button variant="outline" onClick={() => setIsAddNozzleModalOpen(true)}>
+            <Fuel className="w-4 h-4 mr-2" />
+            Add Nozzle
+          </Button>
         </div>
       </div>
 
@@ -66,8 +80,12 @@ export default function Stock() {
           </div>
           <h3 className="text-lg font-medium mb-2">No Tanks Configured</h3>
           <p className="text-muted-foreground max-w-md mb-4">
-            Tanks will be automatically created when you complete your first tanker unloading entry.
+            Click "Add Tank" above to create your first underground storage tank.
           </p>
+          <Button onClick={() => setIsAddTankModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Your First Tank
+          </Button>
         </div>
       )}
 
@@ -99,6 +117,18 @@ export default function Stock() {
           setIsDeleteDialogOpen(false);
           setSelectedTank(null);
         }}
+      />
+
+      {/* Add Tank Modal */}
+      <AddTankModal
+        isOpen={isAddTankModalOpen}
+        onClose={() => setIsAddTankModalOpen(false)}
+      />
+
+      {/* Add Nozzle Modal */}
+      <AddNozzleModal
+        isOpen={isAddNozzleModalOpen}
+        onClose={() => setIsAddNozzleModalOpen(false)}
       />
     </div>
   );
