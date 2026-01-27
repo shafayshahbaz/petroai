@@ -16,16 +16,20 @@ interface EditTankModalProps {
 }
 
 export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
-  const { updateTank } = usePurchaseStore();
+  const { updateTank, updateTankStock } = usePurchaseStore();
   const [name, setName] = useState('');
   const [capacity, setCapacity] = useState<number>(0);
+  const [currentStock, setCurrentStock] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const [stockError, setStockError] = useState<string | null>(null);
 
   useEffect(() => {
     if (tank) {
       setName(tank.name);
       setCapacity(tank.capacity);
+      setCurrentStock(tank.currentStock);
       setError(null);
+      setStockError(null);
     }
   }, [tank]);
 
@@ -56,17 +60,41 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
   const handleCapacityChange = (value: number) => {
     setCapacity(value);
     validateCapacity(value);
+    // Revalidate stock against new capacity
+    validateStock(currentStock, value);
+  };
+
+  const validateStock = (stock: number, cap: number = capacity) => {
+    if (stock < 0) {
+      setStockError('Stock cannot be negative');
+    } else if (stock > cap) {
+      setStockError(`Stock cannot exceed capacity (${formatLiters(cap)} L)`);
+    } else {
+      setStockError(null);
+    }
+  };
+
+  const handleStockChange = (value: number) => {
+    setCurrentStock(value);
+    validateStock(value);
   };
 
   const handleSave = () => {
-    if (error || capacity <= 0 || !name.trim()) return;
+    if (error || stockError || capacity <= 0 || !name.trim()) return;
 
+    // Update tank name and capacity
     updateTank(tank.id, { name: name.trim(), capacity });
+    
+    // Update stock if changed
+    if (currentStock !== tank.currentStock) {
+      updateTankStock(tank.id, currentStock);
+    }
+    
     toast.success(`${name.trim()} updated successfully`);
     onClose();
   };
 
-  const fillPercentage = capacity > 0 ? Math.min(100, (tank.currentStock / capacity) * 100) : 0;
+  const fillPercentage = capacity > 0 ? Math.min(100, (currentStock / capacity) * 100) : 0;
 
   // Product type is locked if tank has stock
   const isProductLocked = tank.currentStock > 0;
@@ -119,21 +147,34 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
             </div>
           </div>
 
-          {/* Current Stock Info */}
-          <div className="p-3 rounded-lg bg-muted/50 border">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Current Stock:</span>
-              <span className="font-medium">{formatLiters(tank.currentStock)} L</span>
-            </div>
-            <div className="flex justify-between text-sm mt-1">
-              <span className="text-muted-foreground">Current Capacity:</span>
-              <span className="font-medium">{formatLiters(tank.capacity)} L</span>
-            </div>
+          {/* Current Stock Input (Editable) */}
+          <div className="space-y-2">
+            <Label htmlFor="currentStock" className="flex items-center gap-2">
+              Current Stock (Liters)
+              <span className="text-xs text-muted-foreground font-normal">- Stock Correction</span>
+            </Label>
+            <Input
+              id="currentStock"
+              type="number"
+              value={currentStock || ''}
+              onChange={(e) => handleStockChange(Number(e.target.value))}
+              placeholder="e.g., 5000"
+              className="h-12 text-lg"
+            />
+            {stockError && (
+              <div className="flex items-center gap-2 text-destructive text-sm">
+                <AlertTriangle className="w-4 h-4" />
+                {stockError}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Use this to correct initial dip reading or calibration errors
+            </p>
           </div>
 
           {/* Capacity Input */}
           <div className="space-y-2">
-            <Label htmlFor="capacity">New Capacity (Liters)</Label>
+            <Label htmlFor="capacity">Total Capacity (Liters)</Label>
             <Input
               id="capacity"
               type="number"
@@ -174,7 +215,7 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!!error || capacity <= 0 || !name.trim()}>
+          <Button onClick={handleSave} disabled={!!error || !!stockError || capacity <= 0 || !name.trim()}>
             Save Changes
           </Button>
         </DialogFooter>

@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { usePurchaseStore } from '@/store/purchase-store';
 import { UndergroundTank } from '@/types/purchase';
 import { FuelType } from '@/types/petrol-pump';
-import { Link2, AlertTriangle } from 'lucide-react';
+import { Link2, AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -18,10 +18,11 @@ interface TankNozzleModalProps {
 }
 
 export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps) {
-  const { tanks, tankNozzleConnections, connectNozzleToTank, disconnectNozzle, getRegisteredNozzles } = usePurchaseStore();
+  const { tanks, tankNozzleConnections, connectNozzleToTank, disconnectNozzle, getRegisteredNozzles, unregisterNozzle } = usePurchaseStore();
   
   const [selectedNozzles, setSelectedNozzles] = useState<string[]>([]);
   const [confirmMove, setConfirmMove] = useState<{ nozzleId: string; fromTankName: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ nozzleId: string; nozzleLabel: string } | null>(null);
   
   // Get nozzles that match this tank's fuel type from registered nozzles
   const compatibleNozzles = useMemo(() => {
@@ -64,6 +65,19 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
       setSelectedNozzles((prev) => [...prev, nozzleId]);
     } else {
       setSelectedNozzles((prev) => prev.filter((id) => id !== nozzleId));
+    }
+  };
+
+  const handleDeleteNozzle = (nozzleId: string, nozzleLabel: string) => {
+    setConfirmDelete({ nozzleId, nozzleLabel });
+  };
+
+  const handleConfirmDelete = () => {
+    if (confirmDelete) {
+      unregisterNozzle(confirmDelete.nozzleId);
+      setSelectedNozzles((prev) => prev.filter(id => id !== confirmDelete.nozzleId));
+      toast.success(`Nozzle "${confirmDelete.nozzleLabel}" deleted`);
+      setConfirmDelete(null);
     }
   };
 
@@ -158,16 +172,30 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
                       </label>
                     </div>
                     
-                    {isConnectedToOther && (
-                      <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
-                        On {connectedTank.name}
-                      </Badge>
-                    )}
-                    {isConnectedToThis && !isSelected && (
-                      <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
-                        Connected
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {isConnectedToOther && (
+                        <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
+                          On {connectedTank.name}
+                        </Badge>
+                      )}
+                      {isConnectedToThis && !isSelected && (
+                        <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
+                          Connected
+                        </Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteNozzle(nozzle.id, nozzle.label);
+                        }}
+                        title={`Delete ${nozzle.label}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 );
               })
@@ -202,6 +230,31 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmMove}>
               Move Nozzle
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmation Dialog for Deleting Nozzle */}
+      <AlertDialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-destructive" />
+              Delete Nozzle?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>"{confirmDelete?.nozzleLabel}"</strong>? 
+              This will remove the nozzle from the system permanently.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Nozzle
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
