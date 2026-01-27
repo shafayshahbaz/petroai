@@ -139,22 +139,47 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+  /* Prevent iOS zoom on input focus */
+  input, select, textarea {
+    font-size: 16px !important;
   }
 
-  ::-webkit-scrollbar-track {
-    @apply bg-muted/30;
+  @media (min-width: 1024px) {
+    input, select, textarea {
+      font-size: inherit !important;
+    }
   }
 
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-full;
+  /* Custom scrollbar - Desktop */
+  @media (min-width: 768px) {
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      @apply bg-muted/30;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      @apply bg-muted-foreground/30 rounded-full;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      @apply bg-muted-foreground/50;
+    }
   }
 
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
+  /* Hide scrollbar on mobile for native app feel */
+  @media (max-width: 767px) {
+    * {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    
+    *::-webkit-scrollbar {
+      display: none;
+    }
   }
 }
 
