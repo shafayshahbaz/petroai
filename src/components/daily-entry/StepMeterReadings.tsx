@@ -125,16 +125,15 @@ export function StepMeterReadings() {
               </thead>
               <tbody>
                 {groupedNozzles[fuelType].map((nozzle, index) => {
-                  const config = DEFAULT_NOZZLE_CONFIG.find(
-                    (c) => c.fuelType === fuelType && 
-                    DEFAULT_NOZZLE_CONFIG.filter((nc) => nc.fuelType === fuelType).indexOf(c) === index
-                  );
+                  // Extract label from nozzle ID: "nozzle-MS-N1" -> "N1"
+                  const parts = nozzle.id.split('-');
+                  const nozzleLabel = parts.length >= 3 ? parts.slice(2).join('-') : `Nozzle ${index + 1}`;
                   const sales = Math.max(0, nozzle.closingReading - nozzle.openingReading);
                   
                   return (
                     <tr key={nozzle.id} className="border-b">
                       <td className="py-3 px-2">
-                        <span className="font-medium">{config?.label || `Nozzle ${index + 1}`}</span>
+                        <span className="font-medium">{nozzleLabel}</span>
                       </td>
                       <td className="py-3 px-2">
                         <Input

@@ -36,7 +36,8 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
   }
 
   if (requireAdmin && role !== 'super_admin') {
-    return <Navigate to="/login" replace />;
+    // Redirect clients trying to access admin routes back to dashboard
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

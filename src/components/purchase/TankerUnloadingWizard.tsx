@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 const STEP_LABELS = [
   'Invoice Header',
   'Truck Config',
-  'Quality Check',
+  'Density Check',
   'Unloading',
   'Verification',
 ];
@@ -384,12 +384,12 @@ export function TankerUnloadingWizard() {
             </div>
           )}
 
-          {/* STEP 3: Quality & Dip Check */}
+          {/* STEP 3: Density Quality Check */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="text-center mb-8">
-                <h2 className="text-xl font-semibold">Quality & Dip Check</h2>
-                <p className="text-muted-foreground">Verify chamber dips and fuel density</p>
+                <h2 className="text-xl font-semibold">Density Quality Check</h2>
+                <p className="text-muted-foreground">Verify chamber density readings against challan</p>
               </div>
 
               {/* Overall Status Banner */}
@@ -409,19 +409,19 @@ export function TankerUnloadingWizard() {
                     "text-2xl font-bold",
                     computedDensityStatus === 'OK' ? "text-green-500" : "text-destructive"
                   )}>
-                    {computedDensityStatus === 'OK' ? 'QUALITY OK' : 'DIP VARIANCE FAIL'}
+                    {computedDensityStatus === 'OK' ? 'QUALITY OK' : 'DENSITY VARIANCE FAIL'}
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  All chamber differences must be within ±3 cm
+                  All chamber density differences must be within ±3.0 kg/m³
                 </p>
               </div>
 
-              {/* Chamber Dip Table */}
+              {/* Chamber Density Table */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Chamber Dip Readings</CardTitle>
-                  <CardDescription>Compare challan dip with physical measurement (tolerance: ±3 cm)</CardDescription>
+                  <CardTitle className="text-lg">Chamber Density Readings</CardTitle>
+                  <CardDescription>Compare challan density with physical measurement (tolerance: ±3.0 kg/m³)</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -429,8 +429,8 @@ export function TankerUnloadingWizard() {
                       <TableRow>
                         <TableHead>Chamber</TableHead>
                         <TableHead>Product</TableHead>
-                        <TableHead>Challan Dip (cm)</TableHead>
-                        <TableHead>Physical Dip (cm)</TableHead>
+                        <TableHead>Challan Density (kg/m³)</TableHead>
+                        <TableHead>Physical Density (kg/m³)</TableHead>
                         <TableHead>Difference</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -438,7 +438,7 @@ export function TankerUnloadingWizard() {
                     <TableBody>
                       {chambers.map((chamber, index) => {
                         const diff = chamber.physicalDip - chamber.challanDip;
-                        const isWithinTolerance = Math.abs(diff) <= 3;
+                        const isWithinTolerance = Math.abs(diff) <= 3.0;
                         return (
                           <TableRow key={chamber.id}>
                             <TableCell className="font-medium">C{index + 1}</TableCell>
@@ -446,19 +446,21 @@ export function TankerUnloadingWizard() {
                             <TableCell>
                               <Input
                                 type="number"
+                                step="0.1"
                                 value={chamber.challanDip || ''}
                                 onChange={(e) => updateChamber(chamber.id, { challanDip: Number(e.target.value) })}
-                                placeholder="0"
-                                className="h-12 w-28"
+                                placeholder="e.g., 745.5"
+                                className="h-12 w-32"
                               />
                             </TableCell>
                             <TableCell>
                               <Input
                                 type="number"
+                                step="0.1"
                                 value={chamber.physicalDip || ''}
                                 onChange={(e) => updateChamber(chamber.id, { physicalDip: Number(e.target.value) })}
-                                placeholder="0"
-                                className="h-12 w-28"
+                                placeholder="e.g., 746.0"
+                                className="h-12 w-32"
                               />
                             </TableCell>
                             <TableCell>
