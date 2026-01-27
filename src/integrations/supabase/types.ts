@@ -143,6 +143,7 @@ export type Database = {
     }
     Functions: {
       get_current_client_id: { Args: never; Returns: string }
+      has_active_subscription: { Args: never; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

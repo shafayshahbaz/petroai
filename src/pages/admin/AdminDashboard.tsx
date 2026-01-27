@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Shield, Users, Plus, RefreshCw, LogOut, Search,
   Calendar, Phone, CheckCircle2, XCircle, Clock,
-  Key, AlertTriangle, Building2, Settings2, CalendarIcon
+  Key, AlertTriangle, Building2, Settings2, CalendarIcon, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, addDays, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { PlatformSettings } from '@/components/admin/PlatformSettings';
+import { DeleteClientDialog } from '@/components/admin/DeleteClientDialog';
 
 interface Client {
   id: string;
@@ -49,6 +50,7 @@ export default function AdminDashboard() {
   const [showExtendDialog, setShowExtendDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showResetClientPasswordDialog, setShowResetClientPasswordDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [extendDays, setExtendDays] = useState(30);
   const [selectedExpiryDate, setSelectedExpiryDate] = useState<Date | undefined>(undefined);
@@ -699,6 +701,18 @@ export default function AdminDashboard() {
                             Activate
                           </Button>
                         )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            setSelectedClient(client);
+                            setShowDeleteDialog(true);
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          Delete
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -859,6 +873,14 @@ export default function AdminDashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Client Permanently Dialog */}
+        <DeleteClientDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          client={selectedClient}
+          onDeleted={fetchClients}
+        />
       </main>
     </div>
   );
