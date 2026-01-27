@@ -120,12 +120,12 @@ export function AddNozzleModal({ isOpen, onClose }: AddNozzleModalProps) {
               <Link2 className="w-4 h-4" />
               Connect to Tank (Optional)
             </Label>
-            <Select value={selectedTankId} onValueChange={setSelectedTankId}>
+            <Select value={selectedTankId || "none"} onValueChange={(val) => setSelectedTankId(val === "none" ? "" : val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a tank to connect..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Don't connect now</SelectItem>
+                <SelectItem value="none">Don't connect now</SelectItem>
                 {compatibleTanks.map((tank) => (
                   <SelectItem key={tank.id} value={tank.id}>
                     {tank.name} ({tank.fuelType})
