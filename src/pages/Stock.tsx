@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { TankCard } from '@/components/stock/TankCard';
 import { TankNozzleModal } from '@/components/stock/TankNozzleModal';
 import { EditTankModal } from '@/components/stock/EditTankModal';
@@ -7,11 +7,11 @@ import { DeleteTankDialog } from '@/components/stock/DeleteTankDialog';
 import { AddTankModal } from '@/components/stock/AddTankModal';
 import { AddNozzleModal } from '@/components/stock/AddNozzleModal';
 import { Button } from '@/components/ui/button';
-import { Plus, Database, Fuel, Rocket } from 'lucide-react';
+import { Plus, Fuel, Rocket, Loader2 } from 'lucide-react';
 import { UndergroundTank } from '@/types/purchase';
 
 export default function Stock() {
-  const { tanks, registeredNozzles, initializeTanks } = usePurchaseStore();
+  const { tanks, nozzles, tanksLoading, nozzlesLoading } = useCloudData();
   const [selectedTank, setSelectedTank] = useState<UndergroundTank | null>(null);
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -20,21 +20,20 @@ export default function Stock() {
   const [isAddNozzleModalOpen, setIsAddNozzleModalOpen] = useState(false);
 
   // Auto-trigger setup if no tanks AND no nozzles exist
-  const isEmptyState = tanks.length === 0 && registeredNozzles.length === 0;
+  const isEmptyState = tanks.length === 0 && nozzles.length === 0;
+  const isLoading = tanksLoading || nozzlesLoading;
 
   useEffect(() => {
-    initializeTanks();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [initializeTanks]);
+  }, []);
 
-  // Auto-open Add Tank modal for first-time setup
+  // Auto-open Add Tank modal for first-time setup (only after loading completes)
   useEffect(() => {
-    if (isEmptyState) {
-      // Small delay to ensure component is mounted
+    if (!isLoading && isEmptyState) {
       const timer = setTimeout(() => setIsAddTankModalOpen(true), 300);
       return () => clearTimeout(timer);
     }
-  }, [isEmptyState]);
+  }, [isLoading, isEmptyState]);
 
   const handleManageConnections = (tank: UndergroundTank) => {
     setSelectedTank(tank);
@@ -50,6 +49,17 @@ export default function Stock() {
     setSelectedTank(tank);
     setIsDeleteDialogOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading stock data from cloud...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">

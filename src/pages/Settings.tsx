@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/store/settings-store';
 import { BackupRestoreSection } from '@/components/backup/BackupManager';
 import { PasswordChangeSection } from '@/components/settings/PasswordChangeSection';
 import { DataWipeSection } from '@/components/settings/DataWipeSection';
+import { ConnectionIndicator } from '@/components/layout/ConnectionIndicator';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Settings() {
@@ -27,12 +28,17 @@ export default function Settings() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your business profile and application settings
-        </p>
+      {/* Header with Connection Status */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <p className="text-muted-foreground">
+            Manage your business profile and application settings
+          </p>
+        </div>
+        <div className="flex-shrink-0">
+          <ConnectionIndicator />
+        </div>
       </div>
 
       {/* Business Profile */}
