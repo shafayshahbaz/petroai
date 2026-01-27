@@ -148,7 +148,7 @@ export function AppSidebar() {
         <div className="p-4 pt-2 border-t border-sidebar-border">
           {!isCollapsed && (
             <p className="text-xs text-sidebar-foreground/50 text-center">
-              © 2025 Petrol Pump Management
+              © 2026 Managed by Shafay Shahbaz
             </p>
           )}
         </div>
