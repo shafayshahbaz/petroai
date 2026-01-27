@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Shield, Users, Plus, RefreshCw, LogOut, Search,
   Calendar, Phone, CheckCircle2, XCircle, Clock,
-  Key, AlertTriangle, Building2
+  Key, AlertTriangle, Building2, Settings2, CalendarIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,11 +11,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, addDays, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { PlatformSettings } from '@/components/admin/PlatformSettings';
 
 interface Client {
   id: string;
@@ -47,6 +51,8 @@ export default function AdminDashboard() {
   const [showResetClientPasswordDialog, setShowResetClientPasswordDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [extendDays, setExtendDays] = useState(30);
+  const [selectedExpiryDate, setSelectedExpiryDate] = useState<Date | undefined>(undefined);
+  const [useCustomDate, setUseCustomDate] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newClientPassword, setNewClientPassword] = useState('');
   
@@ -151,8 +157,16 @@ export default function AdminDashboard() {
     if (!selectedClient) return;
     
     try {
-      const currentExpiry = new Date(selectedClient.subscription_expiry_date);
-      const newExpiry = addDays(currentExpiry > new Date() ? currentExpiry : new Date(), extendDays);
+      let newExpiry: Date;
+      
+      if (useCustomDate && selectedExpiryDate) {
+        // Use the exact date selected by admin
+        newExpiry = selectedExpiryDate;
+      } else {
+        // Add days to current expiry or current date
+        const currentExpiry = new Date(selectedClient.subscription_expiry_date);
+        newExpiry = addDays(currentExpiry > new Date() ? currentExpiry : new Date(), extendDays);
+      }
 
       const { error } = await supabase
         .from('clients')
@@ -165,12 +179,14 @@ export default function AdminDashboard() {
       if (error) throw error;
 
       toast({
-        title: 'Subscription Extended',
-        description: `Extended by ${extendDays} days. New expiry: ${format(newExpiry, 'dd MMM yyyy')}`,
+        title: 'Subscription Updated',
+        description: `New expiry date: ${format(newExpiry, 'dd MMM yyyy')}`,
       });
 
       setShowExtendDialog(false);
       setSelectedClient(null);
+      setUseCustomDate(false);
+      setSelectedExpiryDate(undefined);
       fetchClients();
     } catch (error) {
       console.error('Error extending subscription:', error);
@@ -376,8 +392,22 @@ export default function AdminDashboard() {
       </header>
 
       <main className="p-6 max-w-7xl mx-auto space-y-6">
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Tabs for different sections */}
+        <Tabs defaultValue="clients" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="clients" className="gap-2">
+              <Users className="w-4 h-4" />
+              Clients
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2">
+              <Settings2 className="w-4 h-4" />
+              Platform Settings
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="clients" className="space-y-6">
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -671,43 +701,120 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <PlatformSettings />
+          </TabsContent>
+        </Tabs>
 
         {/* Extend Subscription Dialog */}
-        <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
-          <DialogContent>
+        <Dialog open={showExtendDialog} onOpenChange={(open) => {
+          setShowExtendDialog(open);
+          if (!open) {
+            setUseCustomDate(false);
+            setSelectedExpiryDate(undefined);
+          }
+        }}>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Extend Subscription</DialogTitle>
+              <DialogTitle>Manage Subscription</DialogTitle>
               <DialogDescription>
-                Extend subscription for {selectedClient?.pump_name}
+                Set subscription for {selectedClient?.pump_name}
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
-              <Label>Extend by (days)</Label>
-              <div className="flex gap-2 mt-2 flex-wrap">
-                {[7, 30, 90, 365].map((days) => (
-                  <Button
-                    key={days}
-                    variant={extendDays === days ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setExtendDays(days)}
-                  >
-                    {days} days
-                  </Button>
-                ))}
+            <div className="py-4 space-y-4">
+              {/* Current Expiry Info */}
+              {selectedClient && (
+                <div className="p-3 rounded-lg bg-muted">
+                  <p className="text-sm text-muted-foreground">Current expiry:</p>
+                  <p className="font-medium">{format(new Date(selectedClient.subscription_expiry_date), 'dd MMM yyyy')}</p>
+                </div>
+              )}
+
+              {/* Toggle between modes */}
+              <div className="flex gap-2">
+                <Button
+                  variant={!useCustomDate ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setUseCustomDate(false)}
+                  className="flex-1"
+                >
+                  Extend by Days
+                </Button>
+                <Button
+                  variant={useCustomDate ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setUseCustomDate(true)}
+                  className="flex-1"
+                >
+                  Set Exact Date
+                </Button>
               </div>
-              <Input
-                type="number"
-                value={extendDays}
-                onChange={(e) => setExtendDays(parseInt(e.target.value) || 0)}
-                className="mt-3"
-              />
+
+              {!useCustomDate ? (
+                <>
+                  <div className="space-y-2">
+                    <Label>Extend by (days)</Label>
+                    <div className="flex gap-2 flex-wrap">
+                      {[7, 30, 90, 365].map((days) => (
+                        <Button
+                          key={days}
+                          variant={extendDays === days ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setExtendDays(days)}
+                        >
+                          {days} days
+                        </Button>
+                      ))}
+                    </div>
+                    <Input
+                      type="number"
+                      value={extendDays}
+                      onChange={(e) => setExtendDays(parseInt(e.target.value) || 0)}
+                      className="mt-2"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Set Expiry Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !selectedExpiryDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedExpiryDate ? format(selectedExpiryDate, 'dd MMM yyyy') : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={selectedExpiryDate}
+                        onSelect={setSelectedExpiryDate}
+                        disabled={(date) => date < new Date()}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowExtendDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={extendSubscription}>
-                Extend Subscription
+              <Button 
+                onClick={extendSubscription}
+                disabled={useCustomDate && !selectedExpiryDate}
+              >
+                Update Subscription
               </Button>
             </DialogFooter>
           </DialogContent>
