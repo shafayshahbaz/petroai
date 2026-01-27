@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 import { Lock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
-import { DEFAULT_NOZZLE_CONFIG, FuelType } from '@/types/petrol-pump';
+import { FuelType } from '@/types/petrol-pump';
 import { cn } from '@/lib/utils';
 
 const fuelTypeColors: Record<FuelType, string> = {

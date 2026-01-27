@@ -118,22 +118,8 @@ export interface DailyTotals {
   cashInHand: number;
 }
 
-// Nozzle configuration by fuel type (based on the reference image)
-export const DEFAULT_NOZZLE_CONFIG: { fuelType: FuelType; label: string }[] = [
-  // MS - 4 nozzles
-  { fuelType: 'MS', label: 'N1' },
-  { fuelType: 'MS', label: 'N2' },
-  { fuelType: 'MS', label: 'A1' },
-  { fuelType: 'MS', label: 'A2' },
-  // POWER - 3 nozzles
-  { fuelType: 'POWER', label: 'A1' },
-  { fuelType: 'POWER', label: 'B1' },
-  { fuelType: 'POWER', label: 'A2' },
-  // HSD - 3 nozzles
-  { fuelType: 'HSD', label: 'A2' },
-  { fuelType: 'HSD', label: 'B2' },
-  { fuelType: 'HSD', label: 'A1' },
-];
+// Note: Nozzle configurations are now dynamically created by users via the Stock page.
+// No default nozzles are pre-populated - new accounts start with empty hardware.
 
 // Default fuel rates
 export const DEFAULT_FUEL_RATES: FuelRates = {
