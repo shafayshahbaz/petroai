@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Check, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
+import { usePurchaseStore } from '@/store/purchase-store';
 import { useToast } from '@/hooks/use-toast';
 import { StepRatesAndStaff } from '@/components/daily-entry/StepRatesAndStaff';
 import { StepMeterReadings } from '@/components/daily-entry/StepMeterReadings';
@@ -30,13 +31,21 @@ export default function DailyEntry() {
     saveEntry, 
     clearCurrentEntry,
     validateNozzleReadings,
-    normalizeNozzleReadings
+    normalizeNozzleReadings,
+    syncNozzlesWithRegistered
   } = usePetrolPumpStore();
+  
+  const { registeredNozzles } = usePurchaseStore();
 
   // Initialize entry if not exists
-  if (!currentEntry) {
-    createNewEntry(format(new Date(), 'yyyy-MM-dd'), '');
-  }
+  useEffect(() => {
+    if (!currentEntry) {
+      createNewEntry(format(new Date(), 'yyyy-MM-dd'), '');
+    } else {
+      // Sync nozzles with registered nozzles in case new ones were added
+      syncNozzlesWithRegistered();
+    }
+  }, []);
 
   const handleNext = () => {
     if (currentStep < 4) {

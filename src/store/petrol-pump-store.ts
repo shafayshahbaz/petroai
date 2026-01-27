@@ -54,6 +54,7 @@ interface PetrolPumpState {
   getDebtors: () => Debtor[];
   validateNozzleReadings: () => { valid: boolean; errors: string[] };
   normalizeNozzleReadings: () => void;
+  syncNozzlesWithRegistered: () => void;
   clearAllData: () => void;
 }
 
@@ -533,6 +534,41 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
             },
           };
         });
+      },
+
+      // Sync nozzles in currentEntry with registered nozzles from purchase store
+      syncNozzlesWithRegistered: () => {
+        const { currentEntry } = get();
+        if (!currentEntry) return;
+        
+        const purchaseStore = usePurchaseStoreRef();
+        const registeredNozzles = purchaseStore.getRegisteredNozzles?.() || [];
+        const lastReadings = get().getLastClosingReadings();
+        
+        // Get current nozzle IDs
+        const currentNozzleIds = new Set((currentEntry.nozzles || []).map(n => n.id));
+        
+        // Find new nozzles that aren't in the current entry
+        const newNozzles: Nozzle[] = registeredNozzles
+          .filter(rn => !currentNozzleIds.has(rn.id))
+          .map((config, index) => ({
+            id: config.id,
+            machineId: Math.floor(index / 2) + 1,
+            nozzleNumber: (index % 2) + 1,
+            fuelType: config.fuelType,
+            openingReading: lastReadings[config.id] || 0,
+            closingReading: lastReadings[config.id] || 0,
+          }));
+        
+        // Only update if there are new nozzles to add
+        if (newNozzles.length > 0) {
+          set({
+            currentEntry: {
+              ...currentEntry,
+              nozzles: [...(currentEntry.nozzles || []), ...newNozzles],
+            },
+          });
+        }
       },
 
       clearAllData: () => {
