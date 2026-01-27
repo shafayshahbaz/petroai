@@ -59,7 +59,7 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
     }}>
       {/* Header */}
       <div className="text-center mb-2">
-        <h1 className="font-bold tracking-wide underline" style={{ fontSize: '14px' }}>{companyName.toUpperCase()} {fiscalYear}</h1>
+        <h1 className="font-bold tracking-wide underline" style={{ fontSize: '14px' }}>{companyName.toUpperCase()}</h1>
         <p style={{ fontSize: '10px' }}>{format(parseISO(entry.date), 'dd-MM-yyyy')} {entry.shiftName && `| Shift: ${entry.shiftName}`}</p>
       </div>
 

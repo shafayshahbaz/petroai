@@ -85,8 +85,8 @@ export function AppSidebar() {
             <Fuel className="w-6 h-6 text-sidebar-primary-foreground" />
           </div>
           {!isCollapsed && (
-            <div className="flex-1 min-w-0">
-              <h1 className="font-bold text-sidebar-foreground truncate">{companyName}</h1>
+            <div className="flex-1 min-w-0 pr-2">
+              <h1 className="font-bold text-sidebar-foreground text-sm leading-tight line-clamp-2">{companyName}</h1>
               <p className="text-xs text-sidebar-foreground/70">{t('managementSystem')}</p>
             </div>
           )}
@@ -155,7 +155,7 @@ export function AppSidebar() {
         variant="outline"
         size="icon"
         className={cn(
-          "fixed top-4 left-4 z-30 lg:hidden",
+          "fixed top-4 left-4 z-30 lg:hidden bg-background shadow-md",
           !isCollapsed && "opacity-0 pointer-events-none"
         )}
         onClick={() => setIsCollapsed(false)}
