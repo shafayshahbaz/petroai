@@ -9,6 +9,7 @@ import { CloudDataProvider } from "./contexts/CloudDataContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SubscriptionBanner } from "./components/SubscriptionBanner";
 import { MandatoryBackupModal } from "./components/backup/BackupManager";
+import { LocalDataMigrationModal } from "./components/migration/LocalDataMigrationModal";
 import { MainLayout } from "./components/layout/MainLayout";
 import { SessionTimeoutProvider } from "./components/SessionTimeoutProvider";
 import Dashboard from "./pages/Dashboard";
@@ -59,6 +60,7 @@ const App = () => (
                 <ProtectedRoute>
                   <SessionTimeoutProvider>
                     <SubscriptionBanner />
+                    <LocalDataMigrationModal />
                     <MainLayout>
                       <Dashboard />
                     </MainLayout>
