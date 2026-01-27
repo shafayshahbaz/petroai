@@ -103,32 +103,31 @@ export default function AdminDashboard() {
 
   const createClient = async () => {
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newClient.email,
-        password: newClient.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: newClient.ownerName,
-            role: 'pump_owner',
-          },
+      // Get current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      // Use Edge Function to create client (preserves admin session)
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-client`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
+        body: JSON.stringify({
+          email: newClient.email,
+          password: newClient.password,
+          pumpName: newClient.pumpName,
+          ownerName: newClient.ownerName,
+          phone: newClient.phone,
+        }),
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('User creation failed');
+      const result = await response.json();
 
-      const { error: clientError } = await supabase
-        .from('clients')
-        .insert({
-          user_id: authData.user.id,
-          pump_name: newClient.pumpName,
-          owner_name: newClient.ownerName,
-          phone: newClient.phone || null,
-          temp_password_hint: `Generated: ${newClient.password.slice(-4)}****`,
-        });
-
-      if (clientError) throw clientError;
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create client');
+      }
 
       toast({
         title: 'Client Created',
