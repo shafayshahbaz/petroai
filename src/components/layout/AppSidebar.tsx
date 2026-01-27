@@ -11,23 +11,27 @@ import {
   Truck,
   Database,
   Settings,
-  LogOut
+  LogOut,
+  PlayCircle
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useSettingsStore } from '@/store/settings-store';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { LanguageToggle } from './LanguageToggle';
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/daily-entry', icon: FileText, label: 'Daily Entry' },
-  { to: '/purchase', icon: Truck, label: 'Purchase' },
-  { to: '/stock', icon: Database, label: 'Stock' },
-  { to: '/sales-report', icon: ClipboardList, label: 'Sales Report' },
-  { to: '/ledger', icon: BookOpen, label: 'Ledger' },
-  { to: '/debtors', icon: Users, label: 'Debtors' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+const getNavItems = (t: (key: string) => string) => [
+  { to: '/', icon: LayoutDashboard, label: t('dashboard') },
+  { to: '/daily-entry', icon: FileText, label: t('dailyEntry') },
+  { to: '/purchase', icon: Truck, label: t('purchase') },
+  { to: '/stock', icon: Database, label: t('stock') },
+  { to: '/sales-report', icon: ClipboardList, label: t('salesReport') },
+  { to: '/ledger', icon: BookOpen, label: t('ledger') },
+  { to: '/debtors', icon: Users, label: t('debtors') },
+  { to: '/settings', icon: Settings, label: t('settings') },
+  { to: '/how-to-use', icon: PlayCircle, label: t('howToUse') },
 ];
 
 export function AppSidebar() {
@@ -37,6 +41,10 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { businessProfile } = useSettingsStore();
   const { signOut } = useAuth();
+  const { t } = useLanguage();
+
+  // Get nav items with translations
+  const navItems = getNavItems(t);
 
   // Use business name from settings, fallback to generic name
   const companyName = businessProfile.companyName || 'Fuel Management';
@@ -79,9 +87,10 @@ export function AppSidebar() {
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
               <h1 className="font-bold text-sidebar-foreground truncate">{companyName}</h1>
-              <p className="text-xs text-sidebar-foreground/70">Management System</p>
+              <p className="text-xs text-sidebar-foreground/70">{t('managementSystem')}</p>
             </div>
           )}
+          {!isCollapsed && <LanguageToggle />}
           <Button
             variant="ghost"
             size="icon"
@@ -127,7 +136,7 @@ export function AppSidebar() {
             )}
           >
             <LogOut className="w-5 h-5 shrink-0" />
-            {!isCollapsed && <span>{isLoggingOut ? 'Logging out...' : 'Log Out'}</span>}
+            {!isCollapsed && <span>{isLoggingOut ? t('loggingOut') : t('logOut')}</span>}
           </button>
         </div>
 
