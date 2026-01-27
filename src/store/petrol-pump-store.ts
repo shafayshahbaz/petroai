@@ -60,12 +60,17 @@ interface PetrolPumpState {
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
-// Create nozzles dynamically from registered nozzles in purchase store
+// Create nozzles dynamically from registered nozzles in purchase store (only connected ones)
 const createDynamicNozzles = (lastReadings: Record<string, number>): Nozzle[] => {
   const purchaseStore = usePurchaseStoreRef();
   const registeredNozzles = purchaseStore.getRegisteredNozzles?.() || [];
+  const connections = purchaseStore.tankNozzleConnections || [];
   
-  return registeredNozzles.map((config, index) => {
+  // Only include nozzles that are connected to a tank
+  const connectedNozzleIds = new Set(connections.map(c => c.nozzleId));
+  const connectedNozzles = registeredNozzles.filter(n => connectedNozzleIds.has(n.id));
+  
+  return connectedNozzles.map((config, index) => {
     const id = config.id;
     return {
       id,
@@ -536,20 +541,25 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         });
       },
 
-      // Sync nozzles in currentEntry with registered nozzles from purchase store
+      // Sync nozzles in currentEntry with connected nozzles from purchase store
       syncNozzlesWithRegistered: () => {
         const { currentEntry } = get();
         if (!currentEntry) return;
         
         const purchaseStore = usePurchaseStoreRef();
         const registeredNozzles = purchaseStore.getRegisteredNozzles?.() || [];
+        const connections = purchaseStore.tankNozzleConnections || [];
         const lastReadings = get().getLastClosingReadings();
+        
+        // Only include nozzles that are connected to a tank
+        const connectedNozzleIds = new Set(connections.map(c => c.nozzleId));
+        const connectedNozzles = registeredNozzles.filter(n => connectedNozzleIds.has(n.id));
         
         // Get current nozzle IDs
         const currentNozzleIds = new Set((currentEntry.nozzles || []).map(n => n.id));
         
-        // Find new nozzles that aren't in the current entry
-        const newNozzles: Nozzle[] = registeredNozzles
+        // Find new connected nozzles that aren't in the current entry
+        const newNozzles: Nozzle[] = connectedNozzles
           .filter(rn => !currentNozzleIds.has(rn.id))
           .map((config, index) => ({
             id: config.id,
@@ -560,12 +570,18 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
             closingReading: lastReadings[config.id] || 0,
           }));
         
-        // Only update if there are new nozzles to add
-        if (newNozzles.length > 0) {
+        // Also remove nozzles that are no longer connected
+        const existingConnectedNozzles = (currentEntry.nozzles || []).filter(n => connectedNozzleIds.has(n.id));
+        
+        // Update the entry with connected nozzles only
+        const updatedNozzles = [...existingConnectedNozzles, ...newNozzles];
+        
+        // Only update if there's a change
+        if (updatedNozzles.length !== (currentEntry.nozzles || []).length || newNozzles.length > 0) {
           set({
             currentEntry: {
               ...currentEntry,
-              nozzles: [...(currentEntry.nozzles || []), ...newNozzles],
+              nozzles: updatedNozzles,
             },
           });
         }
