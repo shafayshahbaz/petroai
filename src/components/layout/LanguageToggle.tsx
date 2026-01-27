@@ -15,9 +15,13 @@ export function LanguageToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 text-sidebar-foreground border-sidebar-border bg-sidebar-accent/50 hover:bg-sidebar-accent">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="gap-1.5 min-h-[36px] min-w-[44px] px-2.5 text-sidebar-foreground border-sidebar-border bg-sidebar-accent hover:bg-sidebar-accent/80 font-medium"
+        >
           <Globe className="h-4 w-4" />
-          <span className="font-medium">
+          <span className="font-semibold text-xs">
             {language === 'en' ? 'EN' : 'हिं'}
           </span>
         </Button>

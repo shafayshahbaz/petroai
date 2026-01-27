@@ -80,25 +80,29 @@ export function AppSidebar() {
         )}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-sidebar-border">
+        <div className="flex items-center gap-2 p-4 border-b border-sidebar-border">
           <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-sidebar-primary shrink-0">
             <Fuel className="w-6 h-6 text-sidebar-primary-foreground" />
           </div>
           {!isCollapsed && (
-            <div className="flex-1 min-w-0 pr-2">
-              <h1 className="font-bold text-sidebar-foreground text-sm leading-tight line-clamp-2">{companyName}</h1>
-              <p className="text-xs text-sidebar-foreground/70">{t('managementSystem')}</p>
-            </div>
+            <>
+              <div className="flex-1 min-w-0">
+                <h1 className="font-bold text-sidebar-foreground text-sm leading-tight line-clamp-2 whitespace-normal">{companyName}</h1>
+                <p className="text-xs text-sidebar-foreground/70">{t('managementSystem')}</p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <LanguageToggle />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-sidebar-foreground hover:bg-sidebar-accent lg:hidden min-w-[44px] min-h-[44px]"
+                  onClick={() => setIsCollapsed(true)}
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+            </>
           )}
-          {!isCollapsed && <LanguageToggle />}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 text-sidebar-foreground hover:bg-sidebar-accent lg:hidden"
-            onClick={() => setIsCollapsed(true)}
-          >
-            <X className="w-5 h-5" />
-          </Button>
         </div>
 
         {/* Navigation */}
@@ -150,12 +154,13 @@ export function AppSidebar() {
         </div>
       </aside>
 
-      {/* Mobile toggle button */}
+      {/* Mobile toggle button - Higher z-index, larger touch target */}
       <Button
         variant="outline"
         size="icon"
         className={cn(
-          "fixed top-4 left-4 z-30 lg:hidden bg-background shadow-md",
+          "fixed top-3 left-3 z-50 lg:hidden bg-background shadow-lg border-border",
+          "min-w-[44px] min-h-[44px] w-11 h-11", // 44px touch target
           !isCollapsed && "opacity-0 pointer-events-none"
         )}
         onClick={() => setIsCollapsed(false)}
