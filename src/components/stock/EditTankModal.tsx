@@ -3,9 +3,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, Lock } from 'lucide-react';
+import { AlertTriangle, Lock, Loader2 } from 'lucide-react';
 import { UndergroundTank } from '@/types/purchase';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { formatLiters } from '@/lib/format';
 import { toast } from 'sonner';
 
@@ -16,12 +16,13 @@ interface EditTankModalProps {
 }
 
 export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
-  const { updateTank, updateTankStock } = usePurchaseStore();
+  const { updateTank, updateTankStock } = useCloudData();
   const [name, setName] = useState('');
   const [capacity, setCapacity] = useState<number>(0);
   const [currentStock, setCurrentStock] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [stockError, setStockError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (tank) {
@@ -46,8 +47,8 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
   };
 
   const validateCapacity = (value: number) => {
-    if (value < tank.currentStock) {
-      setError(`Capacity cannot be less than current stock (${formatLiters(tank.currentStock)} L)`);
+    if (value < currentStock) {
+      setError(`Capacity cannot be less than current stock (${formatLiters(currentStock)} L)`);
     } else if (value <= 0) {
       setError('Capacity must be greater than 0');
     } else if (!name.trim()) {
@@ -79,19 +80,28 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
     validateStock(value);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (error || stockError || capacity <= 0 || !name.trim()) return;
 
-    // Update tank name and capacity
-    updateTank(tank.id, { name: name.trim(), capacity });
-    
-    // Update stock if changed
-    if (currentStock !== tank.currentStock) {
-      updateTankStock(tank.id, currentStock);
+    setIsSaving(true);
+    try {
+      // Update tank name and capacity
+      await updateTank(tank.id, { name: name.trim(), capacity });
+      
+      // Update stock if changed
+      if (currentStock !== tank.currentStock) {
+        await updateTankStock(tank.id, currentStock);
+      }
+      
+      toast.success(`${name.trim()} updated successfully`);
+      onClose();
+    } catch (err: any) {
+      toast.error('Failed to update tank', {
+        description: err.message || 'Please try again',
+      });
+    } finally {
+      setIsSaving(false);
     }
-    
-    toast.success(`${name.trim()} updated successfully`);
-    onClose();
   };
 
   const fillPercentage = capacity > 0 ? Math.min(100, (currentStock / capacity) * 100) : 0;
@@ -100,7 +110,7 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
   const isProductLocked = tank.currentStock > 0;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isSaving && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Edit Tank Details</DialogTitle>
@@ -120,6 +130,7 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="e.g., MS Tank 1"
               className="h-12"
+              disabled={isSaving}
             />
           </div>
 
@@ -160,6 +171,7 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
               onChange={(e) => handleStockChange(Number(e.target.value))}
               placeholder="e.g., 5000"
               className="h-12 text-lg"
+              disabled={isSaving}
             />
             {stockError && (
               <div className="flex items-center gap-2 text-destructive text-sm">
@@ -182,6 +194,7 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
               onChange={(e) => handleCapacityChange(Number(e.target.value))}
               placeholder="e.g., 10000"
               className="h-12 text-lg"
+              disabled={isSaving}
             />
             {error && (
               <div className="flex items-center gap-2 text-destructive text-sm">
@@ -212,10 +225,11 @@ export function EditTankModal({ tank, isOpen, onClose }: EditTankModalProps) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!!error || !!stockError || capacity <= 0 || !name.trim()}>
+          <Button onClick={handleSave} disabled={!!error || !!stockError || capacity <= 0 || !name.trim() || isSaving}>
+            {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Save Changes
           </Button>
         </DialogFooter>

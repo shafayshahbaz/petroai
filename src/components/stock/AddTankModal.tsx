@@ -4,10 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { FuelType } from '@/types/petrol-pump';
 import { toast } from 'sonner';
-import { Database } from 'lucide-react';
+import { Database, Loader2 } from 'lucide-react';
 
 interface AddTankModalProps {
   isOpen: boolean;
@@ -15,15 +15,16 @@ interface AddTankModalProps {
 }
 
 export function AddTankModal({ isOpen, onClose }: AddTankModalProps) {
-  const { addTank } = usePurchaseStore();
+  const { addTank } = useCloudData();
   
   const [name, setName] = useState('');
   const [fuelType, setFuelType] = useState<FuelType>('MS');
   const [capacity, setCapacity] = useState<number>(10000);
   const [currentStock, setCurrentStock] = useState<number>(0);
   const [errors, setErrors] = useState<{ name?: string; capacity?: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const newErrors: { name?: string; capacity?: string } = {};
     
     if (!name.trim()) {
@@ -43,25 +44,35 @@ export function AddTankModal({ isOpen, onClose }: AddTankModalProps) {
       return;
     }
 
-    addTank({
-      name: name.trim(),
-      fuelType,
-      capacity,
-      currentStock: currentStock || 0,
-    });
+    setIsSubmitting(true);
+    try {
+      await addTank({
+        name: name.trim(),
+        fuelType,
+        capacity,
+        currentStock: currentStock || 0,
+      });
 
-    toast.success(`${name} has been added successfully`);
-    
-    // Reset form
-    setName('');
-    setFuelType('MS');
-    setCapacity(10000);
-    setCurrentStock(0);
-    setErrors({});
-    onClose();
+      toast.success(`${name} has been added successfully`);
+      
+      // Reset form
+      setName('');
+      setFuelType('MS');
+      setCapacity(10000);
+      setCurrentStock(0);
+      setErrors({});
+      onClose();
+    } catch (error: any) {
+      toast.error('Failed to add tank', {
+        description: error.message || 'Please try again',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
+    if (isSubmitting) return;
     setName('');
     setFuelType('MS');
     setCapacity(10000);
@@ -95,13 +106,14 @@ export function AddTankModal({ isOpen, onClose }: AddTankModalProps) {
               }}
               placeholder="e.g., MS Tank 1, HSD Underground"
               className={errors.name ? 'border-destructive' : ''}
+              disabled={isSubmitting}
             />
             {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
           </div>
 
           <div className="space-y-2">
             <Label>Fuel Type *</Label>
-            <Select value={fuelType} onValueChange={(v) => setFuelType(v as FuelType)}>
+            <Select value={fuelType} onValueChange={(v) => setFuelType(v as FuelType)} disabled={isSubmitting}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -126,6 +138,7 @@ export function AddTankModal({ isOpen, onClose }: AddTankModalProps) {
                 }}
                 placeholder="10000"
                 className={errors.capacity ? 'border-destructive' : ''}
+                disabled={isSubmitting}
               />
             </div>
 
@@ -137,6 +150,7 @@ export function AddTankModal({ isOpen, onClose }: AddTankModalProps) {
                 value={currentStock || ''}
                 onChange={(e) => setCurrentStock(Number(e.target.value))}
                 placeholder="0"
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -144,10 +158,11 @@ export function AddTankModal({ isOpen, onClose }: AddTankModalProps) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Create Tank
           </Button>
         </DialogFooter>

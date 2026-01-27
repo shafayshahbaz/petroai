@@ -9,9 +9,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { AlertTriangle, Droplets, Link2Off } from 'lucide-react';
+import { AlertTriangle, Droplets, Link2Off, Loader2 } from 'lucide-react';
 import { UndergroundTank } from '@/types/purchase';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { formatLiters } from '@/lib/format';
 import { toast } from 'sonner';
 
@@ -22,7 +22,7 @@ interface DeleteTankDialogProps {
 }
 
 export function DeleteTankDialog({ tank, isOpen, onClose }: DeleteTankDialogProps) {
-  const { deleteTank, getNozzlesForTank, disconnectAllNozzlesFromTank } = usePurchaseStore();
+  const { deleteTank, getNozzlesForTank, disconnectNozzle } = useCloudData();
   const [isDeleting, setIsDeleting] = useState(false);
 
   if (!tank) return null;
@@ -36,11 +36,13 @@ export function DeleteTankDialog({ tank, isOpen, onClose }: DeleteTankDialogProp
     try {
       // Step 1: Disconnect all nozzles from this tank first
       if (hasConnectedNozzles) {
-        disconnectAllNozzlesFromTank(tank.id);
+        for (const nozzleId of connectedNozzles) {
+          await disconnectNozzle(nozzleId);
+        }
       }
       
       // Step 2: Delete the tank
-      deleteTank(tank.id);
+      await deleteTank(tank.id);
       
       toast.success(`${tank.name} has been deleted`, {
         description: hasConnectedNozzles 
@@ -49,16 +51,18 @@ export function DeleteTankDialog({ tank, isOpen, onClose }: DeleteTankDialogProp
       });
       
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting tank:', error);
-      toast.error('Failed to delete tank');
+      toast.error('Failed to delete tank', {
+        description: error.message || 'Please try again',
+      });
     } finally {
       setIsDeleting(false);
     }
   };
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <AlertDialog open={isOpen} onOpenChange={(open) => !open && !isDeleting && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-destructive">
@@ -107,6 +111,7 @@ export function DeleteTankDialog({ tank, isOpen, onClose }: DeleteTankDialogProp
             disabled={isDeleting}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
+            {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {isDeleting ? 'Deleting...' : 'Delete Tank'}
           </AlertDialogAction>
         </AlertDialogFooter>
