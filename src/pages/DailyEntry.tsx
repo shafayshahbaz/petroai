@@ -35,17 +35,24 @@ export default function DailyEntry() {
     syncNozzlesWithRegistered
   } = usePetrolPumpStore();
   
-  const { registeredNozzles } = usePurchaseStore();
+  const { registeredNozzles, tankNozzleConnections } = usePurchaseStore();
 
-  // Initialize entry if not exists
+  // Initialize or sync entry on mount
   useEffect(() => {
     if (!currentEntry) {
       createNewEntry(format(new Date(), 'yyyy-MM-dd'), '');
     } else {
-      // Sync nozzles with registered nozzles in case new ones were added
+      // Sync nozzles with connected nozzles in case new ones were added
       syncNozzlesWithRegistered();
     }
   }, []);
+  
+  // Re-sync when registeredNozzles or connections change
+  useEffect(() => {
+    if (currentEntry) {
+      syncNozzlesWithRegistered();
+    }
+  }, [registeredNozzles.length, tankNozzleConnections.length]);
 
   const handleNext = () => {
     if (currentStep < 4) {
