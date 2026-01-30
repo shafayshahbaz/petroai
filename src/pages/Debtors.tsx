@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Phone, Edit2, Save, Trash2 } from 'lucide-react';
+import { Plus, Phone, Edit2, Save, Trash2, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,17 +29,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { usePetrolPumpStore } from '@/store/petrol-pump-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, formatAmount } from '@/lib/format';
 
 export default function Debtors() {
-  const { debtors, addDebtor, updateDebtor, deleteDebtor } = usePetrolPumpStore();
+  const { debtors, createDebtor, updateDebtor, deleteDebtor, isLoading, isOnline } = useCloudData();
   const { toast } = useToast();
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     contactNumber: '',
@@ -51,8 +52,8 @@ export default function Debtors() {
       setEditingId(debtor.id);
       setFormData({
         name: debtor.name,
-        contactNumber: debtor.contactNumber || '',
-        openingBalance: debtor.openingBalance?.toString() || '0',
+        contactNumber: debtor.contact_number || '',
+        openingBalance: debtor.opening_balance?.toString() || '0',
       });
     } else {
       setEditingId(null);
@@ -61,7 +62,7 @@ export default function Debtors() {
     setIsDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name.trim()) {
       toast({
         variant: 'destructive',
@@ -73,39 +74,56 @@ export default function Debtors() {
 
     const openingBal = parseFloat(formData.openingBalance) || 0;
 
-    if (editingId) {
-      // Get current debtor to calculate outstanding difference
-      const currentDebtor = debtors.find(d => d.id === editingId);
-      const oldOpeningBalance = currentDebtor?.openingBalance || 0;
-      const outstandingDiff = openingBal - oldOpeningBalance;
-      
-      updateDebtor(editingId, {
-        name: formData.name.trim(),
-        contactNumber: formData.contactNumber.trim() || undefined,
-        openingBalance: openingBal,
-        totalOutstanding: (currentDebtor?.totalOutstanding || 0) + outstandingDiff,
-      });
-      toast({
-        title: 'Debtor Updated',
-        description: `${formData.name} has been updated.`,
-      });
-    } else {
-      addDebtor(formData.name.trim(), formData.contactNumber.trim() || undefined, openingBal);
-      toast({
-        title: 'Debtor Added',
-        description: `${formData.name} has been added with opening balance of ${formatCurrency(openingBal)}.`,
-      });
-    }
+    setIsSubmitting(true);
+    try {
+      if (editingId) {
+        // Get current debtor to calculate outstanding difference
+        const currentDebtor = debtors.find(d => d.id === editingId);
+        const oldOpeningBalance = currentDebtor?.opening_balance || 0;
+        const outstandingDiff = openingBal - oldOpeningBalance;
+        
+        await updateDebtor(editingId, {
+          name: formData.name.trim(),
+          contact_number: formData.contactNumber.trim() || null,
+          opening_balance: openingBal,
+          total_outstanding: (currentDebtor?.total_outstanding || 0) + outstandingDiff,
+        });
+        toast({
+          title: 'Debtor Updated',
+          description: `${formData.name} has been updated.`,
+        });
+      } else {
+        await createDebtor({
+          name: formData.name.trim(),
+          contact_number: formData.contactNumber.trim() || null,
+          opening_balance: openingBal,
+          total_outstanding: openingBal,
+        });
+        toast({
+          title: 'Debtor Added',
+          description: `${formData.name} has been added with opening balance of ${formatCurrency(openingBal)}.`,
+        });
+      }
 
-    setIsDialogOpen(false);
-    setFormData({ name: '', contactNumber: '', openingBalance: '' });
-    setEditingId(null);
+      setIsDialogOpen(false);
+      setFormData({ name: '', contactNumber: '', openingBalance: '' });
+      setEditingId(null);
+    } catch (error) {
+      console.error('Error saving debtor:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to save debtor.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deleteId) {
       const debtor = debtors.find(d => d.id === deleteId);
-      deleteDebtor(deleteId);
+      await deleteDebtor(deleteId);
       toast({
         title: 'Debtor Deleted',
         description: `${debtor?.name} has been deleted.`,
@@ -114,7 +132,18 @@ export default function Debtors() {
     }
   };
 
-  const totalOutstanding = debtors.reduce((sum, d) => sum + d.totalOutstanding, 0);
+  const totalOutstanding = debtors.reduce((sum, d) => sum + d.total_outstanding, 0);
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <p className="text-muted-foreground">Loading debtors...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -123,11 +152,19 @@ export default function Debtors() {
           <h1 className="text-2xl font-bold text-foreground">Debtors Management</h1>
           <p className="text-muted-foreground">Manage credit customers and their outstanding balances</p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
+        <Button onClick={() => handleOpenDialog()} disabled={!isOnline}>
           <Plus className="w-4 h-4 mr-2" />
           Add New Debtor
         </Button>
       </div>
+
+      {/* Offline Warning */}
+      {!isOnline && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive border border-destructive/20">
+          <WifiOff className="w-4 h-4" />
+          <span className="text-sm font-medium">You're offline. Changes are disabled until connection is restored.</span>
+        </div>
+      )}
 
       {/* Summary Card */}
       <Card>
@@ -173,20 +210,20 @@ export default function Debtors() {
                   <TableRow key={debtor.id}>
                     <TableCell className="font-medium">{debtor.name}</TableCell>
                     <TableCell>
-                      {debtor.contactNumber ? (
+                      {debtor.contact_number ? (
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <Phone className="h-3 w-3" />
-                          {debtor.contactNumber}
+                          {debtor.contact_number}
                         </span>
                       ) : (
                         '-'
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatAmount(debtor.openingBalance || 0)}
+                      {formatAmount(debtor.opening_balance || 0)}
                     </TableCell>
                     <TableCell className="text-right font-mono font-medium text-destructive">
-                      {formatAmount(debtor.totalOutstanding)}
+                      {formatAmount(debtor.total_outstanding)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -194,6 +231,7 @@ export default function Debtors() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleOpenDialog(debtor)}
+                          disabled={!isOnline}
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
@@ -202,6 +240,7 @@ export default function Debtors() {
                           size="icon"
                           onClick={() => setDeleteId(debtor.id)}
                           className="text-destructive hover:text-destructive"
+                          disabled={!isOnline}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -264,9 +303,9 @@ export default function Debtors() {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={isSubmitting || !isOnline}>
               <Save className="w-4 h-4 mr-2" />
-              {editingId ? 'Update' : 'Add Debtor'}
+              {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Add Debtor'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -5,7 +5,7 @@ import {
   Fuel
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import {
   AreaChart,
   Area,
@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 import { format, subDays, parseISO } from 'date-fns';
 import { useMemo } from 'react';
+import { DEFAULT_FUEL_RATES } from '@/types/petrol-pump';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -34,14 +35,63 @@ function formatNumber(num: number, decimals: number = 2): string {
   }).format(num);
 }
 
+// Helper function to calculate totals from cloud entry
+function calculateCloudTotals(entry: any) {
+  const fuelSales = {
+    MS: { liters: 0, amount: 0 },
+    HSD: { liters: 0, amount: 0 },
+    POWER: { liters: 0, amount: 0 },
+  };
+
+  const rates = entry.fuel_rates || DEFAULT_FUEL_RATES;
+  const testingDeduction = entry.testing_deduction || { MS: 0, HSD: 0, POWER: 0 };
+
+  (entry.nozzles || []).forEach((nozzle: any) => {
+    const liters = Math.max(0, (nozzle.closingReading || 0) - (nozzle.openingReading || 0));
+    if (fuelSales[nozzle.fuelType as keyof typeof fuelSales]) {
+      fuelSales[nozzle.fuelType as keyof typeof fuelSales].liters += liters;
+    }
+  });
+
+  // Apply testing deductions and calculate amounts
+  (['MS', 'HSD', 'POWER'] as const).forEach((fuelType) => {
+    const netLiters = Math.max(0, fuelSales[fuelType].liters - (testingDeduction[fuelType] || 0));
+    fuelSales[fuelType].amount = netLiters * (rates[fuelType] || 0);
+  });
+
+  const totalFuelLiters = fuelSales.MS.liters + fuelSales.HSD.liters + fuelSales.POWER.liters;
+  const totalFuelAmount = fuelSales.MS.amount + fuelSales.HSD.amount + fuelSales.POWER.amount;
+  const totalLubeAmount = (entry.lube_items || []).reduce((sum: number, item: any) => sum + (item.quantity || 0) * (item.rate || 0), 0);
+  const totalIncomes = (entry.incomes || []).reduce((sum: number, item: any) => sum + (item.amount || 0), 0);
+  const totalCreditSales = (entry.credit_sales || []).reduce((sum: number, item: any) => sum + (item.amount || 0), 0);
+  const grandTotalIncome = totalFuelAmount + totalLubeAmount + totalIncomes + (entry.opening_balance || 0);
+  const totalExpenses = (entry.expenses || []).reduce((sum: number, item: any) => sum + (item.amount || 0), 0) 
+    + (entry.upi_collection || 0) 
+    + (entry.cash_deposit || 0)
+    + totalCreditSales;
+  const cashInHand = grandTotalIncome - totalExpenses;
+
+  return {
+    fuelSales,
+    totalFuelLiters,
+    totalFuelAmount,
+    totalLubeAmount,
+    totalIncomes,
+    totalCreditSales,
+    grandTotalIncome,
+    totalExpenses,
+    cashInHand,
+  };
+}
+
 export default function Dashboard() {
-  const entries = usePetrolPumpStore((state) => state.entries);
+  const { dailyEntries, isLoading } = useCloudData();
 
   // Get yesterday's entry
   const yesterdayStats = useMemo(() => {
     const yesterday = subDays(new Date(), 1);
     const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
-    const yesterdayEntry = entries.find((e) => e.date === yesterdayStr);
+    const yesterdayEntry = dailyEntries.find((e) => e.date === yesterdayStr);
     
     if (!yesterdayEntry) {
       return {
@@ -50,12 +100,12 @@ export default function Dashboard() {
       };
     }
 
-    const totals = calculateTotals(yesterdayEntry);
+    const totals = calculateCloudTotals(yesterdayEntry);
     return {
       totalSales: totals.totalFuelAmount + totals.totalLubeAmount,
       hasData: true,
     };
-  }, [entries]);
+  }, [dailyEntries]);
 
   // Calculate last 7 days average
   const last7DaysAverage = useMemo(() => {
@@ -65,22 +115,22 @@ export default function Dashboard() {
     for (let i = 1; i <= 7; i++) {
       const date = subDays(new Date(), i);
       const dateStr = format(date, 'yyyy-MM-dd');
-      const entry = entries.find((e) => e.date === dateStr);
+      const entry = dailyEntries.find((e) => e.date === dateStr);
       
       if (entry) {
-        const totals = calculateTotals(entry);
+        const totals = calculateCloudTotals(entry);
         totalSales += totals.totalFuelAmount + totals.totalLubeAmount;
         daysWithData++;
       }
     }
     
     return daysWithData > 0 ? totalSales / daysWithData : 0;
-  }, [entries]);
+  }, [dailyEntries]);
 
   // Get today's entry for fuel breakdown and cash in hand
   const todayStats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    const todayEntry = entries.find((e) => e.date === today);
+    const todayEntry = dailyEntries.find((e) => e.date === today);
     
     if (!todayEntry) {
       return {
@@ -90,23 +140,23 @@ export default function Dashboard() {
       };
     }
 
-    const totals = calculateTotals(todayEntry);
+    const totals = calculateCloudTotals(todayEntry);
     return {
       fuelSales: totals.fuelSales,
       cashInHand: totals.cashInHand,
       hasTodayData: true,
     };
-  }, [entries]);
+  }, [dailyEntries]);
 
   const chartData = useMemo(() => {
     const last7Days = [];
     for (let i = 6; i >= 0; i--) {
       const date = subDays(new Date(), i);
       const dateStr = format(date, 'yyyy-MM-dd');
-      const entry = entries.find((e) => e.date === dateStr);
+      const entry = dailyEntries.find((e) => e.date === dateStr);
       
       if (entry) {
-        const totals = calculateTotals(entry);
+        const totals = calculateCloudTotals(entry);
         last7Days.push({
           date: format(date, 'dd MMM'),
           sales: totals.totalFuelAmount + totals.totalLubeAmount,
@@ -121,13 +171,24 @@ export default function Dashboard() {
       }
     }
     return last7Days;
-  }, [entries]);
+  }, [dailyEntries]);
 
   const recentEntries = useMemo(() => {
-    return [...entries]
+    return [...dailyEntries]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5);
-  }, [entries]);
+  }, [dailyEntries]);
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -294,7 +355,7 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {recentEntries.map((entry) => {
-                  const totals = calculateTotals(entry);
+                  const totals = calculateCloudTotals(entry);
                   return (
                     <div
                       key={entry.id}
@@ -305,7 +366,7 @@ export default function Dashboard() {
                           {format(parseISO(entry.date), 'dd MMM yyyy')}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {entry.shiftName || 'No shift name'}
+                          {entry.shift_name || 'No shift name'}
                         </p>
                       </div>
                       <div className="text-right">

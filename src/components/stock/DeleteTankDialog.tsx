@@ -10,37 +10,31 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { AlertTriangle, Droplets, Link2Off } from 'lucide-react';
-import { UndergroundTank } from '@/types/purchase';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { CloudTank, useCloudData } from '@/contexts/CloudDataContext';
 import { formatLiters } from '@/lib/format';
 import { toast } from 'sonner';
 
 interface DeleteTankDialogProps {
-  tank: UndergroundTank | null;
+  tank: CloudTank | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function DeleteTankDialog({ tank, isOpen, onClose }: DeleteTankDialogProps) {
-  const { deleteTank, getNozzlesForTank, disconnectAllNozzlesFromTank } = usePurchaseStore();
+  const { deleteTank, getNozzlesForTank, isOnline } = useCloudData();
   const [isDeleting, setIsDeleting] = useState(false);
 
   if (!tank) return null;
 
   const connectedNozzles = getNozzlesForTank(tank.id);
-  const hasStock = tank.currentStock > 0;
+  const hasStock = tank.current_stock > 0;
   const hasConnectedNozzles = connectedNozzles.length > 0;
 
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      // Step 1: Disconnect all nozzles from this tank first
-      if (hasConnectedNozzles) {
-        disconnectAllNozzlesFromTank(tank.id);
-      }
-      
-      // Step 2: Delete the tank
-      deleteTank(tank.id);
+      // Delete the tank (nozzles will be disconnected automatically via cloud)
+      await deleteTank(tank.id);
       
       toast.success(`${tank.name} has been deleted`, {
         description: hasConnectedNozzles 
@@ -78,7 +72,7 @@ export function DeleteTankDialog({ tank, isOpen, onClose }: DeleteTankDialogProp
                 <div>
                   <p className="font-medium text-foreground">Tank Has Fuel</p>
                   <p className="text-sm">
-                    This tank still contains <strong>{formatLiters(tank.currentStock)} L</strong> of {tank.fuelType}.
+                    This tank still contains <strong>{formatLiters(tank.current_stock)} L</strong> of {tank.fuel_type}.
                     Deleting it will erase this inventory record.
                   </p>
                 </div>
@@ -104,7 +98,7 @@ export function DeleteTankDialog({ tank, isOpen, onClose }: DeleteTankDialogProp
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
-            disabled={isDeleting}
+            disabled={isDeleting || !isOnline}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {isDeleting ? 'Deleting...' : 'Delete Tank'}

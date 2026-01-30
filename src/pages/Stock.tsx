@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData, CloudTank } from '@/contexts/CloudDataContext';
 import { TankCard } from '@/components/stock/TankCard';
 import { TankNozzleModal } from '@/components/stock/TankNozzleModal';
 import { EditTankModal } from '@/components/stock/EditTankModal';
@@ -7,12 +7,11 @@ import { DeleteTankDialog } from '@/components/stock/DeleteTankDialog';
 import { AddTankModal } from '@/components/stock/AddTankModal';
 import { AddNozzleModal } from '@/components/stock/AddNozzleModal';
 import { Button } from '@/components/ui/button';
-import { Plus, Database, Fuel, Rocket } from 'lucide-react';
-import { UndergroundTank } from '@/types/purchase';
+import { Plus, Fuel, Rocket, WifiOff } from 'lucide-react';
 
 export default function Stock() {
-  const { tanks, registeredNozzles, initializeTanks } = usePurchaseStore();
-  const [selectedTank, setSelectedTank] = useState<UndergroundTank | null>(null);
+  const { tanks, nozzles, isLoading, isOnline } = useCloudData();
+  const [selectedTank, setSelectedTank] = useState<CloudTank | null>(null);
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -20,36 +19,46 @@ export default function Stock() {
   const [isAddNozzleModalOpen, setIsAddNozzleModalOpen] = useState(false);
 
   // Auto-trigger setup if no tanks AND no nozzles exist
-  const isEmptyState = tanks.length === 0 && registeredNozzles.length === 0;
+  const isEmptyState = tanks.length === 0 && nozzles.length === 0;
 
   useEffect(() => {
-    initializeTanks();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [initializeTanks]);
+  }, []);
 
   // Auto-open Add Tank modal for first-time setup
   useEffect(() => {
-    if (isEmptyState) {
+    if (isEmptyState && !isLoading) {
       // Small delay to ensure component is mounted
       const timer = setTimeout(() => setIsAddTankModalOpen(true), 300);
       return () => clearTimeout(timer);
     }
-  }, [isEmptyState]);
+  }, [isEmptyState, isLoading]);
 
-  const handleManageConnections = (tank: UndergroundTank) => {
+  const handleManageConnections = (tank: CloudTank) => {
     setSelectedTank(tank);
     setIsConnectionModalOpen(true);
   };
 
-  const handleEditTank = (tank: UndergroundTank) => {
+  const handleEditTank = (tank: CloudTank) => {
     setSelectedTank(tank);
     setIsEditModalOpen(true);
   };
 
-  const handleDeleteTank = (tank: UndergroundTank) => {
+  const handleDeleteTank = (tank: CloudTank) => {
     setSelectedTank(tank);
     setIsDeleteDialogOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <p className="text-muted-foreground">Loading tanks...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -60,16 +69,24 @@ export default function Stock() {
           <p className="text-muted-foreground">Monitor tank levels and manage nozzle connections</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setIsAddTankModalOpen(true)}>
+          <Button onClick={() => setIsAddTankModalOpen(true)} disabled={!isOnline}>
             <Plus className="w-4 h-4 mr-2" />
             Add Tank
           </Button>
-          <Button variant="outline" onClick={() => setIsAddNozzleModalOpen(true)}>
+          <Button variant="outline" onClick={() => setIsAddNozzleModalOpen(true)} disabled={!isOnline}>
             <Fuel className="w-4 h-4 mr-2" />
             Add Nozzle
           </Button>
         </div>
       </div>
+
+      {/* Offline Warning */}
+      {!isOnline && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive border border-destructive/20">
+          <WifiOff className="w-4 h-4" />
+          <span className="text-sm font-medium">You're offline. Changes are disabled until connection is restored.</span>
+        </div>
+      )}
 
       {/* Tank Grid */}
       {tanks.length > 0 ? (
@@ -94,11 +111,11 @@ export default function Stock() {
             Start by adding your underground storage tanks. Then add nozzles and connect them to track fuel sales automatically.
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
-            <Button onClick={() => setIsAddTankModalOpen(true)} size="lg">
+            <Button onClick={() => setIsAddTankModalOpen(true)} size="lg" disabled={!isOnline}>
               <Plus className="w-4 h-4 mr-2" />
               Add Your First Tank
             </Button>
-            <Button variant="outline" onClick={() => setIsAddNozzleModalOpen(true)} size="lg">
+            <Button variant="outline" onClick={() => setIsAddNozzleModalOpen(true)} size="lg" disabled={!isOnline}>
               <Fuel className="w-4 h-4 mr-2" />
               Add a Nozzle
             </Button>

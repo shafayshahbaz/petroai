@@ -1,12 +1,12 @@
-import { UndergroundTank } from '@/types/purchase';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { CloudTank } from '@/contexts/CloudDataContext';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { formatLiters } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Link2, Droplets, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TankCardProps {
-  tank: UndergroundTank;
+  tank: CloudTank;
   onManageConnections: () => void;
   onEditTank: () => void;
   onDeleteTank: () => void;
@@ -27,11 +27,11 @@ const getFuelColor = (fuelType: string) => {
 };
 
 export function TankCard({ tank, onManageConnections, onEditTank, onDeleteTank }: TankCardProps) {
-  const { getNozzlesForTank } = usePurchaseStore();
-  const connectedNozzles = getNozzlesForTank ? getNozzlesForTank(tank.id) : [];
+  const { getNozzlesForTank, isOnline } = useCloudData();
+  const connectedNozzles = getNozzlesForTank(tank.id);
   
-  const fillPercentage = Math.min(100, Math.max(0, (tank.currentStock / tank.capacity) * 100));
-  const fuelColor = getFuelColor(tank.fuelType);
+  const fillPercentage = Math.min(100, Math.max(0, (tank.current_stock / tank.capacity) * 100));
+  const fuelColor = getFuelColor(tank.fuel_type);
   
   // Determine fill status
   const isLow = fillPercentage < 20;
@@ -44,15 +44,20 @@ export function TankCard({ tank, onManageConnections, onEditTank, onDeleteTank }
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-lg">{tank.name}</h3>
-            <span 
-              className="text-xs font-medium px-2 py-0.5 rounded-full"
-              style={{ 
-                backgroundColor: `${fuelColor}20`,
-                color: fuelColor
-              }}
-            >
-              {tank.fuelType}
-            </span>
+            <div className="flex items-center gap-2">
+              <span 
+                className="text-xs font-medium px-2 py-0.5 rounded-full"
+                style={{ 
+                  backgroundColor: `${fuelColor}20`,
+                  color: fuelColor
+                }}
+              >
+                {tank.fuel_type}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {connectedNozzles.length} nozzle{connectedNozzles.length !== 1 ? 's' : ''}
+              </span>
+            </div>
           </div>
           <div className={cn(
             "text-2xl font-bold tabular-nums",
@@ -123,7 +128,7 @@ export function TankCard({ tank, onManageConnections, onEditTank, onDeleteTank }
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center text-white drop-shadow-lg">
                 <div className="text-xl font-bold tabular-nums">
-                  {formatLiters(tank.currentStock)} L
+                  {formatLiters(tank.current_stock)} L
                 </div>
                 <div className="text-xs opacity-75">
                   of {formatLiters(tank.capacity)} L
@@ -179,6 +184,7 @@ export function TankCard({ tank, onManageConnections, onEditTank, onDeleteTank }
             size="icon"
             onClick={onEditTank}
             title="Edit Tank"
+            disabled={!isOnline}
           >
             <Pencil className="w-4 h-4" />
           </Button>
@@ -188,6 +194,7 @@ export function TankCard({ tank, onManageConnections, onEditTank, onDeleteTank }
             onClick={onDeleteTank}
             title="Delete Tank"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={!isOnline}
           >
             <Trash2 className="w-4 h-4" />
           </Button>
