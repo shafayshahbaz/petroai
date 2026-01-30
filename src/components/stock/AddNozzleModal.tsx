@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { FuelType } from '@/types/petrol-pump';
 import { toast } from 'sonner';
 import { Fuel, Link2 } from 'lucide-react';
@@ -15,52 +15,69 @@ interface AddNozzleModalProps {
 }
 
 export function AddNozzleModal({ isOpen, onClose }: AddNozzleModalProps) {
-  const { tanks, connectNozzleToTank, registerNozzle, registeredNozzles } = usePurchaseStore();
+  const { tanks, nozzles, createNozzle, updateNozzle, isOnline } = useCloudData();
   
   const [name, setName] = useState('');
   const [fuelType, setFuelType] = useState<FuelType>('MS');
   const [selectedTankId, setSelectedTankId] = useState<string>('');
   const [errors, setErrors] = useState<{ name?: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Get compatible tanks based on fuel type
-  const compatibleTanks = tanks.filter(t => t.fuelType === fuelType);
+  const compatibleTanks = tanks.filter(t => t.fuel_type === fuelType);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name.trim()) {
       setErrors({ name: 'Nozzle name is required' });
       return;
     }
 
     // Check for duplicate nozzle names
-    const nozzleId = `nozzle-${fuelType}-${name.trim().replace(/\s+/g, '-')}`;
-    const exists = registeredNozzles.some(n => n.id === nozzleId);
+    const exists = nozzles.some(n => 
+      n.label.toLowerCase() === name.trim().toLowerCase() && 
+      n.fuel_type === fuelType
+    );
     if (exists) {
       setErrors({ name: 'A nozzle with this name and fuel type already exists' });
       return;
     }
 
-    // Register the nozzle first
-    const newNozzle = registerNozzle(name.trim(), fuelType);
+    setIsSubmitting(true);
+    try {
+      // Create the nozzle with optional tank connection
+      const newNozzle = await createNozzle({
+        label: name.trim(),
+        fuel_type: fuelType,
+        tank_id: selectedTankId || null,
+      });
 
-    // If a tank is selected, connect the nozzle to it
-    if (selectedTankId) {
-      connectNozzleToTank(newNozzle.id, selectedTankId);
-      const tank = tanks.find(t => t.id === selectedTankId);
-      toast.success(`${name} created and connected to ${tank?.name}`, {
-        description: 'The nozzle will appear in Daily Entry when you create a new entry.'
-      });
-    } else {
-      toast.success(`${name} registered successfully`, {
-        description: 'Connect it to a tank from the Stock page to use in sales.'
-      });
+      if (newNozzle) {
+        if (selectedTankId) {
+          const tank = tanks.find(t => t.id === selectedTankId);
+          toast.success(`${name} created and connected to ${tank?.name}`, {
+            description: 'The nozzle will appear in Daily Entry when you create a new entry.'
+          });
+        } else {
+          toast.success(`${name} registered successfully`, {
+            description: 'Connect it to a tank from the Stock page to use in sales.'
+          });
+        }
+        
+        // Reset form
+        setName('');
+        setFuelType('MS');
+        setSelectedTankId('');
+        setErrors({});
+        onClose();
+      } else {
+        toast.error('Failed to create nozzle');
+      }
+    } catch (error) {
+      console.error('Error creating nozzle:', error);
+      toast.error('Failed to create nozzle');
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    // Reset form
-    setName('');
-    setFuelType('MS');
-    setSelectedTankId('');
-    setErrors({});
-    onClose();
   };
 
   const handleClose = () => {
@@ -136,7 +153,7 @@ export function AddNozzleModal({ isOpen, onClose }: AddNozzleModalProps) {
                 <SelectItem value="none">Don't connect now</SelectItem>
                 {compatibleTanks.map((tank) => (
                   <SelectItem key={tank.id} value={tank.id}>
-                    {tank.name} ({tank.fuelType})
+                    {tank.name} ({tank.fuel_type})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -153,8 +170,8 @@ export function AddNozzleModal({ isOpen, onClose }: AddNozzleModalProps) {
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>
-            Create Nozzle
+          <Button onClick={handleSubmit} disabled={isSubmitting || !isOnline}>
+            {isSubmitting ? 'Creating...' : 'Create Nozzle'}
           </Button>
         </DialogFooter>
       </DialogContent>

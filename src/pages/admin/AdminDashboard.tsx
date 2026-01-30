@@ -73,6 +73,24 @@ export default function AdminDashboard() {
       return;
     }
     fetchClients();
+
+    // Set up real-time subscription for clients table
+    const clientsChannel = supabase
+      .channel('admin-clients-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'clients'
+      }, (payload) => {
+        console.log('Admin: Client change detected:', payload);
+        // Refetch to get merged profile data
+        fetchClients();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(clientsChannel);
+    };
   }, [role, navigate]);
 
   const fetchClients = async () => {

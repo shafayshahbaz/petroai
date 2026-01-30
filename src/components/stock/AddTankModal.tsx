@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { FuelType } from '@/types/petrol-pump';
 import { toast } from 'sonner';
 import { Database } from 'lucide-react';
@@ -15,15 +15,16 @@ interface AddTankModalProps {
 }
 
 export function AddTankModal({ isOpen, onClose }: AddTankModalProps) {
-  const { addTank } = usePurchaseStore();
+  const { createTank, isOnline } = useCloudData();
   
   const [name, setName] = useState('');
   const [fuelType, setFuelType] = useState<FuelType>('MS');
   const [capacity, setCapacity] = useState<number>(10000);
   const [currentStock, setCurrentStock] = useState<number>(0);
   const [errors, setErrors] = useState<{ name?: string; capacity?: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const newErrors: { name?: string; capacity?: string } = {};
     
     if (!name.trim()) {
@@ -43,22 +44,34 @@ export function AddTankModal({ isOpen, onClose }: AddTankModalProps) {
       return;
     }
 
-    addTank({
-      name: name.trim(),
-      fuelType,
-      capacity,
-      currentStock: currentStock || 0,
-    });
+    setIsSubmitting(true);
+    try {
+      const newTank = await createTank({
+        name: name.trim(),
+        fuel_type: fuelType,
+        capacity,
+        current_stock: currentStock || 0,
+      });
 
-    toast.success(`${name} has been added successfully`);
-    
-    // Reset form
-    setName('');
-    setFuelType('MS');
-    setCapacity(10000);
-    setCurrentStock(0);
-    setErrors({});
-    onClose();
+      if (newTank) {
+        toast.success(`${name} has been added successfully`);
+        
+        // Reset form
+        setName('');
+        setFuelType('MS');
+        setCapacity(10000);
+        setCurrentStock(0);
+        setErrors({});
+        onClose();
+      } else {
+        toast.error('Failed to create tank');
+      }
+    } catch (error) {
+      console.error('Error creating tank:', error);
+      toast.error('Failed to create tank');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
@@ -147,8 +160,8 @@ export function AddTankModal({ isOpen, onClose }: AddTankModalProps) {
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>
-            Create Tank
+          <Button onClick={handleSubmit} disabled={isSubmitting || !isOnline}>
+            {isSubmitting ? 'Creating...' : 'Create Tank'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,7 +1,8 @@
 import { ReactNode, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSettingsStore } from '@/store/settings-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
+import { LoadingScreen } from '@/components/layout/LoadingScreen';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -9,18 +10,12 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { user, role, isLoading } = useAuth();
+  const { user, role, isLoading: authLoading } = useAuth();
+  const { isLoading: dataLoading, isInitialLoad } = useCloudData();
   const location = useLocation();
-  const { accountCreatedAt, setAccountCreatedAt } = useSettingsStore();
 
-  // Set account creation date on first login
-  useEffect(() => {
-    if (user && !accountCreatedAt) {
-      setAccountCreatedAt(new Date().toISOString());
-    }
-  }, [user, accountCreatedAt, setAccountCreatedAt]);
-
-  if (isLoading) {
+  // Show loading screen during auth check
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -38,6 +33,11 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
   if (requireAdmin && role !== 'super_admin') {
     // Redirect clients trying to access admin routes back to dashboard
     return <Navigate to="/" replace />;
+  }
+
+  // Show loading screen during initial cloud data fetch (only for non-admin routes)
+  if (!requireAdmin && isInitialLoad && dataLoading) {
+    return <LoadingScreen />;
   }
 
   return <>{children}</>;

@@ -4,53 +4,45 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { usePurchaseStore } from '@/store/purchase-store';
-import { UndergroundTank } from '@/types/purchase';
-import { FuelType } from '@/types/petrol-pump';
+import { CloudTank, useCloudData } from '@/contexts/CloudDataContext';
 import { Link2, AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface TankNozzleModalProps {
-  tank: UndergroundTank | null;
+  tank: CloudTank | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps) {
-  const { tanks, tankNozzleConnections, connectNozzleToTank, disconnectNozzle, getRegisteredNozzles, unregisterNozzle } = usePurchaseStore();
+  const { tanks, nozzles, updateNozzle, deleteNozzle, isOnline } = useCloudData();
   
   const [selectedNozzles, setSelectedNozzles] = useState<string[]>([]);
   const [confirmMove, setConfirmMove] = useState<{ nozzleId: string; fromTankName: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ nozzleId: string; nozzleLabel: string } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
-  // Get nozzles that match this tank's fuel type from registered nozzles
+  // Get nozzles that match this tank's fuel type
   const compatibleNozzles = useMemo(() => {
-    const registeredNozzles = getRegisteredNozzles?.() || [];
-    return registeredNozzles
-      .filter((nozzle) => nozzle.fuelType === tank?.fuelType)
-      .map((nozzle) => ({
-        id: nozzle.id,
-        label: nozzle.label,
-        fuelType: nozzle.fuelType,
-      }));
-  }, [tank?.fuelType, getRegisteredNozzles]);
+    return nozzles.filter((n) => n.fuel_type === tank?.fuel_type);
+  }, [nozzles, tank?.fuel_type]);
 
   // Load currently connected nozzles when modal opens
   useEffect(() => {
     if (tank && isOpen) {
-      const currentConnections = tankNozzleConnections
-        .filter((conn) => conn.tankId === tank.id)
-        .map((conn) => conn.nozzleId);
+      const currentConnections = nozzles
+        .filter((n) => n.tank_id === tank.id)
+        .map((n) => n.id);
       setSelectedNozzles(currentConnections);
     }
-  }, [tank, isOpen, tankNozzleConnections]);
+  }, [tank, isOpen, nozzles]);
 
   // Find which tank a nozzle is currently connected to
-  const getConnectedTank = (nozzleId: string): UndergroundTank | null => {
-    const connection = tankNozzleConnections.find((c) => c.nozzleId === nozzleId);
-    if (!connection) return null;
-    return tanks.find((t) => t.id === connection.tankId) || null;
+  const getConnectedTank = (nozzleId: string): CloudTank | null => {
+    const nozzle = nozzles.find((n) => n.id === nozzleId);
+    if (!nozzle?.tank_id) return null;
+    return tanks.find((t) => t.id === nozzle.tank_id) || null;
   };
 
   const handleNozzleToggle = (nozzleId: string, checked: boolean) => {
@@ -72,9 +64,9 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
     setConfirmDelete({ nozzleId, nozzleLabel });
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (confirmDelete) {
-      unregisterNozzle(confirmDelete.nozzleId);
+      await deleteNozzle(confirmDelete.nozzleId);
       setSelectedNozzles((prev) => prev.filter(id => id !== confirmDelete.nozzleId));
       toast.success(`Nozzle "${confirmDelete.nozzleLabel}" deleted`);
       setConfirmDelete(null);
@@ -88,31 +80,33 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!tank) return;
 
-    // Get current connections for this tank
-    const currentConnections = tankNozzleConnections
-      .filter((conn) => conn.tankId === tank.id)
-      .map((conn) => conn.nozzleId);
-
-    // Disconnect removed nozzles
-    currentConnections.forEach((nozzleId) => {
-      if (!selectedNozzles.includes(nozzleId)) {
-        disconnectNozzle(nozzleId);
+    setIsSaving(true);
+    try {
+      // Update nozzle connections
+      for (const nozzle of compatibleNozzles) {
+        const shouldBeConnected = selectedNozzles.includes(nozzle.id);
+        const isCurrentlyConnected = nozzle.tank_id === tank.id;
+        
+        if (shouldBeConnected && !isCurrentlyConnected) {
+          // Connect to this tank
+          await updateNozzle(nozzle.id, { tank_id: tank.id });
+        } else if (!shouldBeConnected && isCurrentlyConnected) {
+          // Disconnect from this tank
+          await updateNozzle(nozzle.id, { tank_id: null });
+        }
       }
-    });
 
-    // Connect new nozzles
-    selectedNozzles.forEach((nozzleId) => {
-      const existingConnection = tankNozzleConnections.find((c) => c.nozzleId === nozzleId);
-      if (!existingConnection || existingConnection.tankId !== tank.id) {
-        connectNozzleToTank(nozzleId, tank.id);
-      }
-    });
-
-    toast.success(`Connections updated for ${tank.name}`);
-    onClose();
+      toast.success(`Connections updated for ${tank.name}`);
+      onClose();
+    } catch (error) {
+      console.error('Error saving connections:', error);
+      toast.error('Failed to update connections');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!tank) return null;
@@ -127,7 +121,7 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
               Connect Nozzles to {tank.name}
             </DialogTitle>
             <DialogDescription>
-              Select which {tank.fuelType} nozzles draw fuel from this tank.
+              Select which {tank.fuel_type} nozzles draw fuel from this tank.
               A nozzle can only be connected to one tank at a time.
             </DialogDescription>
           </DialogHeader>
@@ -136,7 +130,7 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
             {compatibleNozzles.length === 0 ? (
               <div className="text-center py-6 space-y-2">
                 <p className="text-muted-foreground">
-                  No {tank.fuelType} nozzles found.
+                  No {tank.fuel_type} nozzles found.
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Create nozzles using the "Add Nozzle" button on the Stock page first.
@@ -163,12 +157,13 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
                         id={nozzle.id}
                         checked={isSelected}
                         onCheckedChange={(checked) => handleNozzleToggle(nozzle.id, !!checked)}
+                        disabled={!isOnline}
                       />
                       <label
                         htmlFor={nozzle.id}
                         className="font-medium cursor-pointer"
                       >
-                        {nozzle.fuelType} - {nozzle.label}
+                        {nozzle.fuel_type} - {nozzle.label}
                       </label>
                     </div>
                     
@@ -192,6 +187,7 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
                           handleDeleteNozzle(nozzle.id, nozzle.label);
                         }}
                         title={`Delete ${nozzle.label}`}
+                        disabled={!isOnline}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -206,8 +202,8 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>
-              Save Connections
+            <Button onClick={handleSave} disabled={isSaving || !isOnline}>
+              {isSaving ? 'Saving...' : 'Save Connections'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -253,6 +249,7 @@ export function TankNozzleModal({ tank, isOpen, onClose }: TankNozzleModalProps)
             <AlertDialogAction 
               onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!isOnline}
             >
               Delete Nozzle
             </AlertDialogAction>
