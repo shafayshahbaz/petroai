@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+// Removed persist middleware - all data now syncs with cloud
 import { 
   UndergroundTank, 
   PurchaseEntry, 
@@ -76,9 +76,7 @@ interface PurchaseState {
   clearAllData: () => void;
 }
 
-export const usePurchaseStore = create<PurchaseState>()(
-  persist(
-    (set, get) => ({
+export const usePurchaseStore = create<PurchaseState>()((set, get) => ({
       tanks: [],
       purchases: [],
       lastChamberCapacity: 3000,
@@ -369,12 +367,7 @@ export const usePurchaseStore = create<PurchaseState>()(
           lastChamberCapacity: 3000,
           tankNozzleConnections: [],
           lastPrices: { MS: 0, HSD: 0, POWER: 0 },
-          registeredNozzles: [],
-        });
-      },
-    }),
-    {
-      name: 'purchase-storage',
-    }
-  )
-);
+      registeredNozzles: [],
+    });
+  },
+}));

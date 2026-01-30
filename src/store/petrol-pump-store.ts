@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+// Removed persist middleware - all data now syncs with cloud
 import { 
   DailyEntry, 
   FuelRates, 
@@ -83,12 +83,10 @@ const createDynamicNozzles = (lastReadings: Record<string, number>): Nozzle[] =>
   });
 };
 
-export const usePetrolPumpStore = create<PetrolPumpState>()(
-  persist(
-    (set, get) => ({
-      entries: [],
-      debtors: [],
-      currentEntry: null,
+export const usePetrolPumpStore = create<PetrolPumpState>()((set, get) => ({
+  entries: [],
+  debtors: [],
+  currentEntry: null,
 
       createNewEntry: (date, shiftName) => {
         const lastReadings = get().getLastClosingReadings();
@@ -587,19 +585,14 @@ export const usePetrolPumpStore = create<PetrolPumpState>()(
         }
       },
 
-      clearAllData: () => {
-        set({
-          entries: [],
-          debtors: [],
-          currentEntry: null,
-        });
-      },
-    }),
-    {
-      name: 'petrol-pump-storage',
-    }
-  )
-);
+  clearAllData: () => {
+    set({
+      entries: [],
+      debtors: [],
+      currentEntry: null,
+    });
+  },
+}));
 
 // Helper function to calculate totals
 export function calculateTotals(entry: DailyEntry | Partial<DailyEntry>): {

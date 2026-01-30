@@ -11,17 +11,18 @@ import { TruckVisual } from './TruckVisual';
 import { DensityCalculator } from './DensityCalculator';
 import { ChamberConfigRow } from './ChamberConfigRow';
 import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { TruckChamber, DensityCheck, StockVerification, calculateCorrectedDensity } from '@/types/purchase';
 import { FuelType } from '@/types/petrol-pump';
 import { formatAmount, formatLiters } from '@/lib/format';
-import { ArrowLeft, ArrowRight, Check, AlertTriangle, Truck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Truck, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 const STEP_LABELS = [
   'Invoice Header',
   'Truck Config',
-  'Density Check',
+  'Dip & Quality Check',
   'Unloading',
   'Verification',
 ];
@@ -31,17 +32,36 @@ const chamberIdFromNumber = (chamberNumber: number) => `chamber-${chamberNumber}
 export function TankerUnloadingWizard() {
   const navigate = useNavigate();
   const { 
-    tanks, 
+    tanks: localTanks, 
     initializeTanks, 
     savePurchase, 
     finalizeUnloading, 
-    getTanksByFuelType, 
+    getTanksByFuelType: getLocalTanksByFuelType, 
     lastChamberCapacity, 
     setLastChamberCapacity,
     validateTankCapacity,
     getLastPrice,
     setLastPrice
   } = usePurchaseStore();
+  
+  // Import cloud data for real-time tanks
+  const { tanks: cloudTanks, updateTank: updateCloudTank, createPurchase: createCloudPurchase } = useCloudData();
+  
+  // Use cloud tanks if available, fallback to local
+  const tanks = cloudTanks.length > 0 ? cloudTanks.map(t => ({
+    id: t.id,
+    name: t.name,
+    fuelType: t.fuel_type as FuelType,
+    capacity: t.capacity,
+    currentStock: t.current_stock,
+    createdAt: t.created_at,
+    updatedAt: t.updated_at,
+  })) : localTanks;
+  
+  // Get tanks by fuel type using cloud data
+  const getTanksByFuelType = (fuelType: FuelType) => {
+    return tanks.filter(t => t.fuelType === fuelType);
+  };
   
   // Initialize tanks on mount
   useEffect(() => {
@@ -172,15 +192,7 @@ export function TankerUnloadingWizard() {
     }));
   }, []);
 
-  // Check if all chamber dip differences are within ±3
-  const allDipsWithinTolerance = chambers.every(c => {
-    const diff = c.physicalDip - c.challanDip;
-    return Math.abs(diff) <= 3;
-  });
-
-  // Compute overall density status based on chamber dips
-  const computedDensityStatus: 'OK' | 'FAIL' = allDipsWithinTolerance ? 'OK' : 'FAIL';
-
+  // Compute dip difference - no validation, just display
   const canProceed = (): boolean => {
     switch (currentStep) {
       case 1:
@@ -188,7 +200,8 @@ export function TankerUnloadingWizard() {
       case 2:
         return numberOfChambers > 0 && chambers.every(c => c.fuelType && c.capacity > 0);
       case 3:
-        return chambers.every(c => c.challanDip > 0 && c.physicalDip > 0);
+        // Allow proceeding regardless of dip values - just need to enter them
+        return chambers.every(c => c.challanDip >= 0 && c.physicalDip >= 0);
       case 4:
         return chambers.every(c => c.destinationTankId !== null);
       case 5:
@@ -220,10 +233,10 @@ export function TankerUnloadingWizard() {
       }
     }
 
-    // Save the purchase entry with computed density status
+    // Save the purchase entry - dip check is informational only
     const finalDensityCheck: DensityCheck = {
       ...densityCheck,
-      status: computedDensityStatus,
+      status: 'OK', // Always OK since we removed strict validation
     };
     
     const purchase = savePurchase({
@@ -384,44 +397,19 @@ export function TankerUnloadingWizard() {
             </div>
           )}
 
-          {/* STEP 3: Density Quality Check */}
+          {/* STEP 3: Dip & Quality Check */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="text-center mb-8">
-                <h2 className="text-xl font-semibold">Density Quality Check</h2>
-                <p className="text-muted-foreground">Verify chamber density readings against challan</p>
+                <h2 className="text-xl font-semibold">Dip & Quality Check</h2>
+                <p className="text-muted-foreground">Record challan dip vs physical dip measurements (in cm)</p>
               </div>
 
-              {/* Overall Status Banner */}
-              <div className={cn(
-                "p-4 rounded-xl border-2 text-center",
-                computedDensityStatus === 'OK' 
-                  ? "bg-green-500/10 border-green-500" 
-                  : "bg-destructive/10 border-destructive"
-              )}>
-                <div className="flex items-center justify-center gap-3">
-                  {computedDensityStatus === 'OK' ? (
-                    <Check className="w-8 h-8 text-green-500" />
-                  ) : (
-                    <AlertTriangle className="w-8 h-8 text-destructive animate-pulse" />
-                  )}
-                  <span className={cn(
-                    "text-2xl font-bold",
-                    computedDensityStatus === 'OK' ? "text-green-500" : "text-destructive"
-                  )}>
-                    {computedDensityStatus === 'OK' ? 'QUALITY OK' : 'DENSITY VARIANCE FAIL'}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  All chamber density differences must be within ±3.0 kg/m³
-                </p>
-              </div>
-
-              {/* Chamber Density Table */}
+              {/* Chamber Dip Table */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Chamber Density Readings</CardTitle>
-                  <CardDescription>Compare challan density with physical measurement (tolerance: ±3.0 kg/m³)</CardDescription>
+                  <CardTitle className="text-lg">Chamber Dip Readings</CardTitle>
+                  <CardDescription>Compare challan dip with physical dip measurement</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -429,27 +417,34 @@ export function TankerUnloadingWizard() {
                       <TableRow>
                         <TableHead>Chamber</TableHead>
                         <TableHead>Product</TableHead>
-                        <TableHead>Challan Density (kg/m³)</TableHead>
-                        <TableHead>Physical Density (kg/m³)</TableHead>
-                        <TableHead>Difference</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>Challan Dip (cm)</TableHead>
+                        <TableHead>Physical Dip (cm)</TableHead>
+                        <TableHead>Difference (cm)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {chambers.map((chamber, index) => {
-                        const diff = chamber.physicalDip - chamber.challanDip;
-                        const isWithinTolerance = Math.abs(diff) <= 3.0;
+                        const diff = chamber.challanDip - chamber.physicalDip;
                         return (
                           <TableRow key={chamber.id}>
                             <TableCell className="font-medium">C{index + 1}</TableCell>
-                            <TableCell>{chamber.fuelType}</TableCell>
+                            <TableCell>
+                              <span className={cn(
+                                "px-2 py-1 rounded text-sm font-medium",
+                                chamber.fuelType === 'MS' && "bg-orange-500/20 text-orange-600",
+                                chamber.fuelType === 'HSD' && "bg-blue-500/20 text-blue-600",
+                                chamber.fuelType === 'POWER' && "bg-pink-500/20 text-pink-600"
+                              )}>
+                                {chamber.fuelType}
+                              </span>
+                            </TableCell>
                             <TableCell>
                               <Input
                                 type="number"
                                 step="0.1"
                                 value={chamber.challanDip || ''}
                                 onChange={(e) => updateChamber(chamber.id, { challanDip: Number(e.target.value) })}
-                                placeholder="e.g., 745.5"
+                                placeholder="e.g., 85.5"
                                 className="h-12 w-32"
                               />
                             </TableCell>
@@ -459,26 +454,18 @@ export function TankerUnloadingWizard() {
                                 step="0.1"
                                 value={chamber.physicalDip || ''}
                                 onChange={(e) => updateChamber(chamber.id, { physicalDip: Number(e.target.value) })}
-                                placeholder="e.g., 746.0"
+                                placeholder="e.g., 84.0"
                                 className="h-12 w-32"
                               />
                             </TableCell>
                             <TableCell>
                               <span className={cn(
                                 "font-bold text-lg",
-                                isWithinTolerance ? "text-green-500" : "text-destructive"
+                                diff === 0 && "text-muted-foreground",
+                                diff > 0 && "text-green-600",
+                                diff < 0 && "text-amber-600"
                               )}>
                                 {diff > 0 ? '+' : ''}{diff.toFixed(1)}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <span className={cn(
-                                "px-2 py-1 rounded text-xs font-bold",
-                                isWithinTolerance 
-                                  ? "bg-green-500/20 text-green-600" 
-                                  : "bg-destructive/20 text-destructive"
-                              )}>
-                                {isWithinTolerance ? 'OK' : 'FAIL'}
                               </span>
                             </TableCell>
                           </TableRow>
@@ -489,7 +476,7 @@ export function TankerUnloadingWizard() {
                 </CardContent>
               </Card>
 
-              {/* Density Calculator - Simplified */}
+              {/* Density Calculator - Kept as side tool */}
               <DensityCalculator
                 densityCheck={densityCheck}
                 onChange={setDensityCheck}
@@ -647,11 +634,8 @@ export function TankerUnloadingWizard() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Quality Status</p>
-                      <p className={cn(
-                        "text-lg font-bold",
-                        computedDensityStatus === 'OK' ? "text-green-500" : "text-destructive"
-                      )}>
-                        {computedDensityStatus}
+                      <p className="text-lg font-bold text-green-500">
+                        OK
                       </p>
                     </div>
                   </div>
