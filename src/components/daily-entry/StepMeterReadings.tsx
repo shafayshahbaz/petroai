@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { FuelType } from '@/types/petrol-pump';
 import { cn } from '@/lib/utils';
 
@@ -33,7 +34,20 @@ function formatCurrency(amount: number): string {
 
 export function StepMeterReadings() {
   const { currentEntry, updateNozzle, updateTestingDeduction, isFirstEntry } = usePetrolPumpStore();
+  const { nozzles: cloudNozzles, getConnectedNozzles } = useCloudData();
   const isFirst = isFirstEntry();
+
+  // Get connected nozzles from cloud data
+  const connectedCloudNozzles = getConnectedNozzles();
+
+  // Map cloud nozzles to the format expected by the component
+  const nozzlesFromCloud = useMemo(() => {
+    return connectedCloudNozzles.map(n => ({
+      id: n.id,
+      fuelType: n.fuel_type as FuelType,
+      label: n.label,
+    }));
+  }, [connectedCloudNozzles]);
 
   const groupedNozzles = useMemo(() => {
     if (!currentEntry?.nozzles) return { MS: [], HSD: [], POWER: [] };
@@ -79,6 +93,24 @@ export function StepMeterReadings() {
 
   if (!currentEntry) return null;
 
+  // Show empty state if no nozzles are connected
+  if (!currentEntry.nozzles || currentEntry.nozzles.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <AlertCircle className="w-16 h-16 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold mb-2">No Nozzles Connected</h3>
+        <p className="text-muted-foreground max-w-md">
+          Please go to the Stock page and connect nozzles to tanks before entering meter readings.
+        </p>
+        {cloudNozzles.length > 0 && connectedCloudNozzles.length === 0 && (
+          <p className="text-sm text-amber-600 mt-4">
+            You have {cloudNozzles.length} nozzle(s) registered but none are connected to tanks.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   const handleReadingChange = (nozzleId: string, field: 'openingReading' | 'closingReading', value: string) => {
     const numValue = parseFloat(value) || 0;
     updateNozzle(nozzleId, { [field]: numValue });
@@ -87,6 +119,15 @@ export function StepMeterReadings() {
   const handleTestingChange = (fuelType: FuelType, value: string) => {
     const numValue = parseFloat(value) || 0;
     updateTestingDeduction(fuelType, numValue);
+  };
+
+  // Find the cloud nozzle label for a given nozzle ID
+  const getNozzleLabel = (nozzleId: string) => {
+    const cloudNozzle = nozzlesFromCloud.find(n => n.id === nozzleId);
+    if (cloudNozzle) return cloudNozzle.label;
+    // Fallback: Extract label from nozzle ID: "nozzle-MS-N1" -> "N1"
+    const parts = nozzleId.split('-');
+    return parts.length >= 3 ? parts.slice(2).join('-') : nozzleId;
   };
 
   return (
@@ -107,92 +148,98 @@ export function StepMeterReadings() {
           </div>
 
           {/* Nozzles Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-2 text-sm font-medium text-muted-foreground">Nozzle</th>
-                  <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">
-                    <span className="flex items-center justify-end gap-1">
-                      Opening
-                      {!isFirst && <Lock className="h-3 w-3" />}
-                    </span>
-                  </th>
-                  <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">Closing</th>
-                  <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">Sales (L)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedNozzles[fuelType].map((nozzle, index) => {
-                  // Extract label from nozzle ID: "nozzle-MS-N1" -> "N1"
-                  const parts = nozzle.id.split('-');
-                  const nozzleLabel = parts.length >= 3 ? parts.slice(2).join('-') : `Nozzle ${index + 1}`;
-                  const sales = Math.max(0, nozzle.closingReading - nozzle.openingReading);
-                  
-                  return (
-                    <tr key={nozzle.id} className="border-b">
-                      <td className="py-3 px-2">
-                        <span className="font-medium">{nozzleLabel}</span>
-                      </td>
-                      <td className="py-3 px-2">
-                        <Input
-                          type="number"
-                          step="0.001"
-                          value={nozzle.openingReading || ''}
-                          onChange={(e) => handleReadingChange(nozzle.id, 'openingReading', e.target.value)}
-                          disabled={!isFirst}
-                          className={cn(
-                            "w-32 h-10 number-input text-right ml-auto",
-                            !isFirst && "bg-muted cursor-not-allowed"
-                          )}
-                          placeholder="0.000"
-                        />
-                      </td>
-                      <td className="py-3 px-2">
-                        <Input
-                          type="number"
-                          step="0.001"
-                          value={nozzle.closingReading || ''}
-                          onChange={(e) => handleReadingChange(nozzle.id, 'closingReading', e.target.value)}
-                          className="w-32 h-10 number-input text-right ml-auto"
-                          placeholder="0.000"
-                        />
-                      </td>
-                      <td className="py-3 px-2 text-right font-mono font-medium">
-                        {formatNumber(sales)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {groupedNozzles[fuelType].length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2 text-sm font-medium text-muted-foreground">Nozzle</th>
+                    <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">
+                      <span className="flex items-center justify-end gap-1">
+                        Opening
+                        {!isFirst && <Lock className="h-3 w-3" />}
+                      </span>
+                    </th>
+                    <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">Closing</th>
+                    <th className="text-right py-2 px-2 text-sm font-medium text-muted-foreground">Sales (L)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedNozzles[fuelType].map((nozzle) => {
+                    const nozzleLabel = getNozzleLabel(nozzle.id);
+                    const sales = Math.max(0, nozzle.closingReading - nozzle.openingReading);
+                    
+                    return (
+                      <tr key={nozzle.id} className="border-b">
+                        <td className="py-3 px-2">
+                          <span className="font-medium">{nozzleLabel}</span>
+                        </td>
+                        <td className="py-3 px-2">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            value={nozzle.openingReading || ''}
+                            onChange={(e) => handleReadingChange(nozzle.id, 'openingReading', e.target.value)}
+                            disabled={!isFirst}
+                            className={cn(
+                              "w-32 h-10 number-input text-right ml-auto",
+                              !isFirst && "bg-muted cursor-not-allowed"
+                            )}
+                            placeholder="0.000"
+                          />
+                        </td>
+                        <td className="py-3 px-2">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            value={nozzle.closingReading || ''}
+                            onChange={(e) => handleReadingChange(nozzle.id, 'closingReading', e.target.value)}
+                            className="w-32 h-10 number-input text-right ml-auto"
+                            placeholder="0.000"
+                          />
+                        </td>
+                        <td className="py-3 px-2 text-right font-mono font-medium">
+                          {formatNumber(sales)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg">
+              No {fuelTypeNames[fuelType]} nozzles connected
+            </div>
+          )}
 
           {/* Fuel Type Totals */}
-          <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Total Sales (Liters)</span>
-              <span className="font-mono font-semibold">{formatNumber(totals[fuelType].liters)} L</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Testing Deduction</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={currentEntry.testingDeduction?.[fuelType] || ''}
-                  onChange={(e) => handleTestingChange(fuelType, e.target.value)}
-                  className="w-24 h-8 number-input text-right"
-                  placeholder="0.00"
-                />
+          {groupedNozzles[fuelType].length > 0 && (
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Total Sales (Liters)</span>
+                <span className="font-mono font-semibold">{formatNumber(totals[fuelType].liters)} L</span>
               </div>
-              <span className="font-mono text-muted-foreground">-{formatNumber(currentEntry.testingDeduction?.[fuelType] || 0)} L</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Testing Deduction</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={currentEntry.testingDeduction?.[fuelType] || ''}
+                    onChange={(e) => handleTestingChange(fuelType, e.target.value)}
+                    className="w-24 h-8 number-input text-right"
+                    placeholder="0.00"
+                  />
+                </div>
+                <span className="font-mono text-muted-foreground">-{formatNumber(currentEntry.testingDeduction?.[fuelType] || 0)} L</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-2">
+                <span className="font-medium">Net Sales Amount</span>
+                <span className="font-mono font-bold text-lg">{formatCurrency(totals[fuelType].amount)}</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between border-t pt-2">
-              <span className="font-medium">Net Sales Amount</span>
-              <span className="font-mono font-bold text-lg">{formatCurrency(totals[fuelType].amount)}</span>
-            </div>
-          </div>
+          )}
         </div>
       ))}
 

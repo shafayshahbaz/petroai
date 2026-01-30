@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+// Removed persist middleware - settings now sync with cloud (clients table)
 
 export interface BusinessProfile {
   companyName: string;
@@ -20,14 +20,38 @@ interface SettingsState {
   setAccountCreatedAt: (date: string) => void;
   clearAllData: () => void;
   
-  // Backup/Restore
+  // Backup/Restore - now cloud-based
   exportAllData: () => string;
   importAllData: (jsonData: string) => boolean;
 }
 
-export const useSettingsStore = create<SettingsState>()(
-  persist(
-    (set, get) => ({
+export const useSettingsStore = create<SettingsState>()((set, get) => ({
+  businessProfile: {
+    companyName: '',
+    customerId: '',
+    address: '',
+    gstNumber: '',
+    phone: '',
+  },
+  lastBackupDate: null,
+  accountCreatedAt: null,
+
+  updateBusinessProfile: (profile) => {
+    set((state) => ({
+      businessProfile: { ...state.businessProfile, ...profile },
+    }));
+  },
+
+  setLastBackupDate: (date) => {
+    set({ lastBackupDate: date });
+  },
+
+  setAccountCreatedAt: (date) => {
+    set({ accountCreatedAt: date });
+  },
+
+  clearAllData: () => {
+    set({
       businessProfile: {
         companyName: '',
         customerId: '',
@@ -37,66 +61,35 @@ export const useSettingsStore = create<SettingsState>()(
       },
       lastBackupDate: null,
       accountCreatedAt: null,
+    });
+  },
 
-      updateBusinessProfile: (profile) => {
-        set((state) => ({
-          businessProfile: { ...state.businessProfile, ...profile },
-        }));
+  exportAllData: () => {
+    // This will be called with all stores' data
+    const settingsData = get();
+    return JSON.stringify({
+      settings: {
+        businessProfile: settingsData.businessProfile,
+        lastBackupDate: settingsData.lastBackupDate,
       },
+      exportedAt: new Date().toISOString(),
+      version: '1.0',
+    });
+  },
 
-      setLastBackupDate: (date) => {
-        set({ lastBackupDate: date });
-      },
-
-      setAccountCreatedAt: (date) => {
-        set({ accountCreatedAt: date });
-      },
-
-      clearAllData: () => {
+  importAllData: (jsonData) => {
+    try {
+      const data = JSON.parse(jsonData);
+      if (data.settings) {
         set({
-          businessProfile: {
-            companyName: '',
-            customerId: '',
-            address: '',
-            gstNumber: '',
-            phone: '',
-          },
-          lastBackupDate: null,
-          accountCreatedAt: null,
+          businessProfile: data.settings.businessProfile || get().businessProfile,
+          lastBackupDate: new Date().toISOString(),
         });
-      },
-
-      exportAllData: () => {
-        // This will be called with all stores' data
-        const settingsData = get();
-        return JSON.stringify({
-          settings: {
-            businessProfile: settingsData.businessProfile,
-            lastBackupDate: settingsData.lastBackupDate,
-          },
-          exportedAt: new Date().toISOString(),
-          version: '1.0',
-        });
-      },
-
-      importAllData: (jsonData) => {
-        try {
-          const data = JSON.parse(jsonData);
-          if (data.settings) {
-            set({
-              businessProfile: data.settings.businessProfile || get().businessProfile,
-              lastBackupDate: new Date().toISOString(),
-            });
-          }
-          return true;
-        } catch (error) {
-          console.error('Failed to import settings data:', error);
-          return false;
-        }
-      },
-    }),
-    {
-      name: 'settings-storage',
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to import settings data:', error);
+      return false;
     }
-  )
-);
+  },
+}));

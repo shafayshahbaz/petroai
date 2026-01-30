@@ -5,13 +5,14 @@ import { ChevronLeft, ChevronRight, Check, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { useToast } from '@/hooks/use-toast';
 import { StepRatesAndStaff } from '@/components/daily-entry/StepRatesAndStaff';
 import { StepMeterReadings } from '@/components/daily-entry/StepMeterReadings';
 import { StepLubeSales } from '@/components/daily-entry/StepLubeSales';
 import { StepExpensesAndPayments } from '@/components/daily-entry/StepExpensesAndPayments';
 import { cn } from '@/lib/utils';
+import { FuelType } from '@/types/petrol-pump';
 
 const steps = [
   { id: 1, title: 'Rates & Staff', description: 'Set fuel rates and shift details' },
@@ -32,27 +33,54 @@ export default function DailyEntry() {
     clearCurrentEntry,
     validateNozzleReadings,
     normalizeNozzleReadings,
-    syncNozzlesWithRegistered
+    getLastClosingReadings
   } = usePetrolPumpStore();
   
-  const { registeredNozzles, tankNozzleConnections } = usePurchaseStore();
+  // Get connected nozzles from cloud data
+  const { nozzles: cloudNozzles, getConnectedNozzles, isOnline } = useCloudData();
+  const connectedNozzles = getConnectedNozzles();
 
   // Initialize or sync entry on mount
   useEffect(() => {
     if (!currentEntry) {
       createNewEntry(format(new Date(), 'yyyy-MM-dd'), '');
-    } else {
-      // Sync nozzles with connected nozzles in case new ones were added
-      syncNozzlesWithRegistered();
     }
-  }, []);
+  }, [currentEntry, createNewEntry]);
   
-  // Re-sync when registeredNozzles or connections change
+  // Sync nozzles with cloud connected nozzles when they change
   useEffect(() => {
-    if (currentEntry) {
-      syncNozzlesWithRegistered();
+    if (currentEntry && connectedNozzles.length > 0) {
+      const lastReadings = getLastClosingReadings();
+      const currentNozzleIds = new Set((currentEntry.nozzles || []).map(n => n.id));
+      
+      // Find new connected nozzles not in current entry
+      const newNozzles = connectedNozzles
+        .filter(cn => !currentNozzleIds.has(cn.id))
+        .map((cn, index) => ({
+          id: cn.id,
+          machineId: Math.floor(index / 2) + 1,
+          nozzleNumber: (index % 2) + 1,
+          fuelType: cn.fuel_type as FuelType,
+          openingReading: lastReadings[cn.id] || 0,
+          closingReading: lastReadings[cn.id] || 0,
+        }));
+      
+      // Also remove nozzles that are no longer connected
+      const connectedNozzleIds = new Set(connectedNozzles.map(cn => cn.id));
+      const existingConnectedNozzles = (currentEntry.nozzles || []).filter(n => connectedNozzleIds.has(n.id));
+      
+      // Update if there are changes
+      if (newNozzles.length > 0 || existingConnectedNozzles.length !== (currentEntry.nozzles || []).length) {
+        const updatedNozzles = [...existingConnectedNozzles, ...newNozzles];
+        usePetrolPumpStore.setState({
+          currentEntry: {
+            ...currentEntry,
+            nozzles: updatedNozzles,
+          },
+        });
+      }
     }
-  }, [registeredNozzles.length, tankNozzleConnections.length]);
+  }, [connectedNozzles.length, currentEntry, getLastClosingReadings]);
 
   const handleNext = () => {
     if (currentStep < 4) {
