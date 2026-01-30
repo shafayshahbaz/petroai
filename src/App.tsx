@@ -5,11 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
-import { CloudDataProvider } from "./contexts/CloudDataContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SubscriptionBanner } from "./components/SubscriptionBanner";
 import { MandatoryBackupModal } from "./components/backup/BackupManager";
-import { LocalDataMigrationModal } from "./components/migration/LocalDataMigrationModal";
 import { MainLayout } from "./components/layout/MainLayout";
 import { SessionTimeoutProvider } from "./components/SessionTimeoutProvider";
 import Dashboard from "./pages/Dashboard";
@@ -33,11 +31,10 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <AuthProvider>
-        <CloudDataProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
             <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
@@ -60,7 +57,6 @@ const App = () => (
                 <ProtectedRoute>
                   <SessionTimeoutProvider>
                     <SubscriptionBanner />
-                    <LocalDataMigrationModal />
                     <MainLayout>
                       <Dashboard />
                     </MainLayout>
@@ -171,10 +167,9 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-          </TooltipProvider>
-        </CloudDataProvider>
-      </AuthProvider>
-    </LanguageProvider>
+      </TooltipProvider>
+    </AuthProvider>
+  </LanguageProvider>
   </QueryClientProvider>
 );
 

@@ -1,5 +1,5 @@
 import { UndergroundTank } from '@/types/purchase';
-import { useCloudData } from '@/contexts/CloudDataContext';
+import { usePurchaseStore } from '@/store/purchase-store';
 import { formatLiters } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Link2, Droplets, Pencil, Trash2 } from 'lucide-react';
@@ -27,8 +27,8 @@ const getFuelColor = (fuelType: string) => {
 };
 
 export function TankCard({ tank, onManageConnections, onEditTank, onDeleteTank }: TankCardProps) {
-  const { getNozzlesForTank } = useCloudData();
-  const connectedNozzles = getNozzlesForTank(tank.id);
+  const { getNozzlesForTank } = usePurchaseStore();
+  const connectedNozzles = getNozzlesForTank ? getNozzlesForTank(tank.id) : [];
   
   const fillPercentage = Math.min(100, Math.max(0, (tank.currentStock / tank.capacity) * 100));
   const fuelColor = getFuelColor(tank.fuelType);
@@ -161,13 +161,6 @@ export function TankCard({ tank, onManageConnections, onEditTank, onDeleteTank }
             Dead Stock Warning
           </p>
         )}
-      </div>
-
-      {/* Connected Nozzles Count */}
-      <div className="px-4 pb-2">
-        <p className="text-xs text-muted-foreground">
-          {connectedNozzles.length} nozzle{connectedNozzles.length !== 1 ? 's' : ''} connected
-        </p>
       </div>
 
       {/* Actions */}
