@@ -145,7 +145,9 @@ export default function Ledger() {
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-
+  
+  // Ledger search state for transaction filtering (must be before any early returns)
+  const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
   // Calculate group summaries
   const groupSummaries = useMemo(() => {
     // Debtors - total outstanding
@@ -567,9 +569,6 @@ export default function Ledger() {
       </div>
     );
   }
-
-  // Ledger search state for transaction filtering
-  const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
 
   // Filter ledger data based on search query (searches all columns)
   const filteredLedgerData = useMemo(() => {
