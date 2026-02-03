@@ -11,13 +11,14 @@ import {
   Wallet,
   Receipt,
   Plus,
-  Banknote,
   ArrowDownToLine,
   ArrowUpFromLine,
-  Search
+  Search,
+  List,
+  LayoutGrid
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import {
@@ -25,7 +26,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { useCloudData, CloudDailyEntry, CloudDebtor } from '@/contexts/CloudDataContext';
+import { useCloudData, CloudDailyEntry } from '@/contexts/CloudDataContext';
 import { cn } from '@/lib/utils';
 import { formatAmount } from '@/lib/format';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -34,12 +35,13 @@ import { AccountListItem } from '@/components/ledger/AccountListItem';
 import { LedgerTransactionTable, LedgerTransaction } from '@/components/ledger/LedgerTransactionTable';
 import { PaymentReceiptModal } from '@/components/ledger/PaymentReceiptModal';
 import { BankActionModal } from '@/components/ledger/BankActionModal';
+import { MasterAccountList, MasterAccount, AccountType } from '@/components/ledger/MasterAccountList';
 import { toast } from 'sonner';
 import { DailyEntry, FuelType } from '@/types/petrol-pump';
 
 // Account group types
 type AccountGroup = 'debtors' | 'bank' | 'expenses' | 'cash';
-type ViewMode = 'groups' | 'accounts' | 'ledger';
+type ViewMode = 'master' | 'groups' | 'accounts' | 'ledger';
 
 // Get current financial year dates (April 1 - March 31)
 function getFYDates() {
@@ -126,8 +128,8 @@ export default function Ledger() {
     totalOutstanding: d.total_outstanding,
   })), [cloudDebtors]);
   
-  // Navigation state
-  const [viewMode, setViewMode] = useState<ViewMode>('groups');
+  // Navigation state - default to master view
+  const [viewMode, setViewMode] = useState<ViewMode>('master');
   const [selectedGroup, setSelectedGroup] = useState<AccountGroup | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [selectedAccountName, setSelectedAccountName] = useState<string>('');
@@ -199,6 +201,56 @@ export default function Ledger() {
     });
     return Array.from(heads);
   }
+
+  // Build unified Master Account list (all accounts in one view)
+  const masterAccounts = useMemo<MasterAccount[]>(() => {
+    const accounts: MasterAccount[] = [];
+
+    // Add all debtors
+    debtors.forEach(debtor => {
+      accounts.push({
+        id: debtor.id,
+        name: debtor.name,
+        type: 'Debtor' as AccountType,
+        balance: debtor.totalOutstanding || 0,
+        subtitle: debtor.contactNumber,
+      });
+    });
+
+    // Add bank account
+    accounts.push({
+      id: 'main-bank',
+      name: 'Main Bank Account',
+      type: 'Bank' as AccountType,
+      balance: groupSummaries.bank.balance,
+      subtitle: 'All bank deposits',
+    });
+
+    // Add expense heads
+    getUniqueExpenseHeads().forEach(head => {
+      const total = entries.reduce((sum, e) => {
+        return sum + (e.expenses?.filter(exp => exp.description === head)
+          .reduce((s, exp) => s + exp.amount, 0) || 0);
+      }, 0);
+      accounts.push({
+        id: `expense-${head}`,
+        name: head,
+        type: 'Expense' as AccountType,
+        balance: total,
+      });
+    });
+
+    // Add cash account
+    accounts.push({
+      id: 'cash',
+      name: 'Cash Account',
+      type: 'Cash' as AccountType,
+      balance: groupSummaries.cash.balance,
+      subtitle: 'Daily cash movements',
+    });
+
+    return accounts;
+  }, [debtors, entries, groupSummaries]);
 
   // Get ledger transactions based on selection
   const ledgerData = useMemo(() => {
@@ -385,20 +437,55 @@ export default function Ledger() {
     setViewMode('accounts');
   };
 
-  const navigateToLedger = (accountId: string, accountName: string) => {
+  const navigateToLedger = (accountId: string, accountName: string, group?: AccountGroup) => {
     setSelectedAccountId(accountId);
     setSelectedAccountName(accountName);
+    if (group) {
+      setSelectedGroup(group);
+    }
     setViewMode('ledger');
+  };
+
+  // Handle master account click - navigate directly to ledger
+  const handleMasterAccountClick = (account: MasterAccount) => {
+    let group: AccountGroup;
+    let accountId = account.id;
+    
+    switch (account.type) {
+      case 'Debtor':
+        group = 'debtors';
+        break;
+      case 'Bank':
+        group = 'bank';
+        break;
+      case 'Expense':
+        group = 'expenses';
+        // Extract original expense head name from ID
+        accountId = account.name;
+        break;
+      case 'Cash':
+        group = 'cash';
+        break;
+      default:
+        group = 'debtors';
+    }
+    
+    setSelectedGroup(group);
+    navigateToLedger(accountId, account.name, group);
   };
 
   const goBack = () => {
     if (viewMode === 'ledger') {
-      setViewMode('accounts');
+      // Go back to master view instead of accounts
+      setViewMode('master');
       setSelectedAccountId(null);
       setSelectedAccountName('');
+      setSelectedGroup(null);
     } else if (viewMode === 'accounts') {
       setViewMode('groups');
       setSelectedGroup(null);
+    } else if (viewMode === 'groups') {
+      setViewMode('master');
     }
   };
 
@@ -427,16 +514,62 @@ export default function Ledger() {
     // Note: Actual bank transaction storage would require extending the data model
   };
 
-  // Render Groups View (Home)
+  // Render Master View (Default - Tally Style All Accounts)
+  if (viewMode === 'master') {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <BookOpen className="h-6 w-6 text-primary" />
+              {t('ledger')}
+            </h1>
+            <p className="text-muted-foreground">Master Account Browser • All Accounts</p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewMode('groups')}
+              className="gap-2"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Group View
+            </Button>
+          </div>
+        </div>
+
+        <MasterAccountList 
+          accounts={masterAccounts}
+          onAccountClick={handleMasterAccountClick}
+        />
+      </div>
+    );
+  }
+
+  // Render Groups View
   if (viewMode === 'groups') {
     return (
       <div className="space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <BookOpen className="h-6 w-6 text-primary" />
-            {t('ledger')}
-          </h1>
-          <p className="text-muted-foreground">Master Account Groups • Tally Style</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <BookOpen className="h-6 w-6 text-primary" />
+              {t('ledger')}
+            </h1>
+            <p className="text-muted-foreground">Account Groups • Tally Style</p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewMode('master')}
+              className="gap-2"
+            >
+              <List className="h-4 w-4" />
+              Master List
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -586,15 +719,13 @@ export default function Ledger() {
   }
 
   // Render Individual Ledger View
-
-  // Render Individual Ledger View
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <Button variant="ghost" className="mb-2 -ml-2 gap-2" onClick={goBack}>
             <ArrowLeft className="h-4 w-4" />
-            {t('back')} to {selectedGroup === 'debtors' ? 'Debtors' : selectedGroup === 'bank' ? 'Banks' : selectedGroup === 'expenses' ? 'Expenses' : 'Cash'}
+            {t('back')} to Master Ledger
           </Button>
           <h1 className="text-2xl font-bold text-foreground">{selectedAccountName}</h1>
           <p className="text-muted-foreground">Ledger Account • Transaction History</p>

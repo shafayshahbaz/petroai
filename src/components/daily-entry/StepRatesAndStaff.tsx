@@ -10,17 +10,25 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import { cn } from '@/lib/utils';
 import { FuelRates } from '@/types/petrol-pump';
 
-export function StepRatesAndStaff() {
-  const { currentEntry, createNewEntry, updateFuelRates, updateOpeningBalance, isFirstEntry } = usePetrolPumpStore();
+interface StepRatesAndStaffProps {
+  isFirstEntry?: boolean;
+}
+
+export function StepRatesAndStaff({ isFirstEntry: isFirstProp }: StepRatesAndStaffProps) {
+  const { currentEntry, createNewEntry, updateFuelRates, updateOpeningBalance } = usePetrolPumpStore();
+  const { dailyEntries: cloudEntries } = useCloudData();
+  
+  // Determine if this is the first entry using cloud data (most reliable source)
+  const isFirst = isFirstProp !== undefined ? isFirstProp : cloudEntries.length === 0;
 
   if (!currentEntry) return null;
 
   const date = currentEntry.date ? parseISO(currentEntry.date) : new Date();
   const rates = currentEntry.fuelRates || { MS: 0, HSD: 0, POWER: 0 };
-  const isFirst = isFirstEntry();
 
   const handleDateChange = (newDate: Date | undefined) => {
     if (newDate) {
