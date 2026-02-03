@@ -434,8 +434,9 @@ export function TankerUnloadingWizard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {chambers.map((chamber, index) => {
-                        const diff = chamber.challanDip - chamber.physicalDip;
+                    {chambers.map((chamber, index) => {
+                        // Fixed formula: Physical - Challan (positive = gain, negative = loss)
+                        const diff = chamber.physicalDip - chamber.challanDip;
                         return (
                           <TableRow key={chamber.id}>
                             <TableCell className="font-medium">C{index + 1}</TableCell>

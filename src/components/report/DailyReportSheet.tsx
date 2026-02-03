@@ -30,10 +30,24 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
     HSD: entry.nozzles.filter((n) => n.fuelType === 'HSD'),
   };
 
-  // Helper to extract label from nozzle ID
-  const getNozzleLabel = (nozzleId: string, index: number): string => {
-    const parts = nozzleId.split('-');
-    return parts.length >= 3 ? parts.slice(2).join('-') : `N${index + 1}`;
+  // Helper to extract label from nozzle - prioritize saved label, then parse ID, then fallback
+  const getNozzleLabel = (nozzle: any, index: number): string => {
+    // If the nozzle has a stored label property, use it
+    if (nozzle.label && typeof nozzle.label === 'string' && nozzle.label.trim()) {
+      return nozzle.label;
+    }
+    // Try to extract from the ID format (e.g., "uuid-Machine 1")
+    const nozzleId = nozzle.id || '';
+    const idParts = nozzleId.split('-');
+    if (idParts.length >= 2) {
+      // Check if last part looks like a label (not a UUID segment)
+      const lastPart = idParts[idParts.length - 1];
+      if (lastPart.length > 4 && !/^[a-f0-9]+$/i.test(lastPart)) {
+        return idParts.slice(-2).join(' ');
+      }
+    }
+    // Fallback to index-based label
+    return `Nozzle ${index + 1}`;
   };
 
   const getFuelRate = (fuelType: FuelType): number => {
@@ -78,8 +92,8 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
                 <thead>
                   <tr>
                     <th className="text-left" style={{ width: '80px' }}></th>
-                    {nozzles.map((nozzle, idx) => (
-                      <th key={nozzle.id} className="text-right px-1 font-bold">{getNozzleLabel(nozzle.id, idx)}</th>
+                    {nozzles.map((nozzle: any, idx: number) => (
+                      <th key={nozzle.id} className="text-right px-1 font-bold">{getNozzleLabel(nozzle, idx)}</th>
                     ))}
                   </tr>
                 </thead>
