@@ -355,6 +355,21 @@ export default function Ledger() {
     return rows;
   }, [selectedGroup, selectedAccountId, entries, dateRange]);
 
+  // Filter ledger data based on search query (searches all columns)
+  // Must be defined before early returns
+  const filteredLedgerData = useMemo(() => {
+    if (!ledgerSearchQuery.trim()) return ledgerData;
+    
+    const query = ledgerSearchQuery.toLowerCase();
+    return ledgerData.filter(row => 
+      row.date.includes(query) ||
+      row.particulars.toLowerCase().includes(query) ||
+      (row.remarks && row.remarks.toLowerCase().includes(query)) ||
+      row.debit.toString().includes(query) ||
+      row.credit.toString().includes(query)
+    );
+  }, [ledgerData, ledgerSearchQuery]);
+
   // Get opening balance for selected account
   const openingBalance = useMemo(() => {
     if (selectedGroup === 'debtors' && selectedAccountId) {
@@ -570,19 +585,7 @@ export default function Ledger() {
     );
   }
 
-  // Filter ledger data based on search query (searches all columns)
-  const filteredLedgerData = useMemo(() => {
-    if (!ledgerSearchQuery.trim()) return ledgerData;
-    
-    const query = ledgerSearchQuery.toLowerCase();
-    return ledgerData.filter(row => 
-      row.date.includes(query) ||
-      row.particulars.toLowerCase().includes(query) ||
-      (row.remarks && row.remarks.toLowerCase().includes(query)) ||
-      row.debit.toString().includes(query) ||
-      row.credit.toString().includes(query)
-    );
-  }, [ledgerData, ledgerSearchQuery]);
+  // Render Individual Ledger View
 
   // Render Individual Ledger View
   return (
