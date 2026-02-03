@@ -32,10 +32,16 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function StepMeterReadings() {
-  const { currentEntry, updateNozzle, updateTestingDeduction, isFirstEntry } = usePetrolPumpStore();
-  const { nozzles: cloudNozzles, getConnectedNozzles } = useCloudData();
-  const isFirst = isFirstEntry();
+interface StepMeterReadingsProps {
+  isFirstEntry?: boolean;
+}
+
+export function StepMeterReadings({ isFirstEntry: isFirstProp }: StepMeterReadingsProps) {
+  const { currentEntry, updateNozzle, updateTestingDeduction } = usePetrolPumpStore();
+  const { nozzles: cloudNozzles, getConnectedNozzles, dailyEntries: cloudEntries } = useCloudData();
+  
+  // Determine if this is the first entry using cloud data (most reliable source)
+  const isFirst = isFirstProp !== undefined ? isFirstProp : cloudEntries.length === 0;
 
   // Get connected nozzles from cloud data
   const connectedCloudNozzles = getConnectedNozzles();

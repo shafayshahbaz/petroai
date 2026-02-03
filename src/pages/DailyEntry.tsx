@@ -439,12 +439,21 @@ export default function DailyEntry() {
     navigate('/');
   };
 
+  // Calculate if this is the first entry based on cloud data (excluding current edit)
+  const isFirstEntry = useMemo(() => {
+    if (isEditMode && editId) {
+      // When editing, check if there are other entries
+      return cloudEntries.filter(e => e.id !== editId).length === 0;
+    }
+    return cloudEntries.length === 0;
+  }, [cloudEntries, isEditMode, editId]);
+
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <StepRatesAndStaff />;
+        return <StepRatesAndStaff isFirstEntry={isFirstEntry} />;
       case 2:
-        return <StepMeterReadings />;
+        return <StepMeterReadings isFirstEntry={isFirstEntry} />;
       case 3:
         return <StepLubeSales />;
       case 4:
