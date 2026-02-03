@@ -1,56 +1,82 @@
 import { useState } from 'react';
-import { Trash2, AlertTriangle, Database, UserX } from 'lucide-react';
+import { Trash2, AlertTriangle, Database, UserX, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useSettingsStore } from '@/store/settings-store';
-import { usePurchaseStore } from '@/store/purchase-store';
-import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { PasswordConfirmationModal } from './PasswordConfirmationModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useCloudData } from '@/contexts/CloudDataContext';
 
 export function DataWipeSection() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { signOut, clientId } = useAuth();
-  const { clearAllData: clearSettings } = useSettingsStore();
-  const { clearAllData: clearPurchases } = usePurchaseStore();
-  const { clearAllData: clearPetrolPump } = usePetrolPumpStore();
+  const { refreshData, isOnline } = useCloudData();
 
   const [showDataWipeModal, setShowDataWipeModal] = useState(false);
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
 
-  // Option A: Delete business data but keep account structure
+  // Option A: Delete business data but keep account structure (CLOUD-FIRST)
   const handleDataWipe = async () => {
+    if (!clientId || !isOnline) {
+      toast({
+        title: 'Cannot Clear Data',
+        description: isOnline ? 'Client ID not found' : 'You are currently offline',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsWiping(true);
     try {
-      // Clear all local storage data (sales, purchases, ledger, expenses)
-      clearPurchases();
-      
-      // For petrol pump store, we want to keep tanks/nozzles but clear sales data
-      // Since the current implementation doesn't separate these, we'll clear all for now
-      // In a full implementation, you'd have separate store methods
-      
-      // Clear localStorage keys
-      localStorage.removeItem('purchase-storage');
-      // Note: We're keeping 'settings-storage' and 'petrol-pump-storage' for tank structure
-      
+      // Delete all cloud data in order (respecting foreign key constraints)
+      // 1. Delete daily entries (sales data)
+      const { error: entriesError } = await supabase
+        .from('daily_entries')
+        .delete()
+        .eq('client_id', clientId);
+      if (entriesError) throw entriesError;
+
+      // 2. Delete purchases
+      const { error: purchasesError } = await supabase
+        .from('purchases')
+        .delete()
+        .eq('client_id', clientId);
+      if (purchasesError) throw purchasesError;
+
+      // 3. Reset tank stock to 0 (keep tanks but clear stock)
+      const { error: tanksError } = await supabase
+        .from('tanks')
+        .update({ current_stock: 0 })
+        .eq('client_id', clientId);
+      if (tanksError) throw tanksError;
+
+      // 4. Reset debtor balances
+      const { error: debtorsError } = await supabase
+        .from('debtors')
+        .update({ total_outstanding: 0 })
+        .eq('client_id', clientId);
+      if (debtorsError) throw debtorsError;
+
+      // Refresh local state from cloud
+      await refreshData();
+
       toast({
         title: 'Data Cleared Successfully',
-        description: 'All sales, purchases, and transaction data has been deleted. Your tanks and account remain intact.',
+        description: 'All sales, purchases, and transaction data has been deleted from the cloud. Your tanks and account remain intact.',
       });
-      
-      // Reload to reflect changes
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
     } catch (error: any) {
+      console.error('Data wipe error:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to clear data',
         variant: 'destructive',
       });
+    } finally {
+      setIsWiping(false);
     }
   };
 
@@ -66,17 +92,10 @@ export function DataWipeSection() {
         .from('clients')
         .update({ 
           subscription_status: 'suspended' as const,
-          // Note: In a full implementation, you'd add a deletion_requested_at field
         })
         .eq('id', clientId);
 
       if (error) throw error;
-
-      // Clear all local data
-      clearSettings();
-      clearPurchases();
-      clearPetrolPump();
-      localStorage.clear();
 
       toast({
         title: 'Account Deletion Requested',
@@ -131,9 +150,14 @@ export function DataWipeSection() {
               size="sm"
               className="border-amber-500 text-amber-600 hover:bg-amber-50"
               onClick={() => setShowDataWipeModal(true)}
+              disabled={!isOnline || isWiping}
             >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Clear Data
+              {isWiping ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              {isWiping ? 'Clearing...' : 'Clear Data'}
             </Button>
           </div>
 

@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
+import { useCloudData, CloudDailyEntry } from '@/contexts/CloudDataContext';
 import { useToast } from '@/hooks/use-toast';
 import { DailyEntry, FuelType } from '@/types/petrol-pump';
 import { PrintableReport } from '@/components/report/PrintableReport';
@@ -51,6 +52,27 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+// Helper to convert cloud entry to local format for calculations
+function cloudToLocalEntry(cloudEntry: CloudDailyEntry): DailyEntry {
+  return {
+    id: cloudEntry.id,
+    date: cloudEntry.date,
+    shiftName: cloudEntry.shift_name || undefined,
+    fuelRates: cloudEntry.fuel_rates as Record<FuelType, number>,
+    nozzles: cloudEntry.nozzles as any[],
+    lubeItems: cloudEntry.lube_items as any[],
+    expenses: cloudEntry.expenses as any[],
+    incomes: cloudEntry.incomes as any[],
+    creditSales: cloudEntry.credit_sales as any[],
+    upiCollection: cloudEntry.upi_collection,
+    cashDeposit: cloudEntry.cash_deposit,
+    openingBalance: cloudEntry.opening_balance,
+    testingDeduction: cloudEntry.testing_deduction as Record<FuelType, number>,
+    createdAt: cloudEntry.created_at,
+    updatedAt: cloudEntry.updated_at,
+  };
+}
+
 export default function SalesReport() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -58,7 +80,14 @@ export default function SalesReport() {
   const [selectedEntry, setSelectedEntry] = useState<DailyEntry | null>(null);
   const [printEntry, setPrintEntry] = useState<DailyEntry | null>(null);
   
-  const { entries, deleteEntry, loadEntryForEdit } = usePetrolPumpStore();
+  const { loadEntryForEdit } = usePetrolPumpStore();
+  const { dailyEntries: cloudEntries, deleteDailyEntry, isOnline } = useCloudData();
+
+  // Convert cloud entries to local format for display
+  const entries = useMemo(() => 
+    cloudEntries.map(cloudToLocalEntry),
+    [cloudEntries]
+  );
 
   useEffect(() => {
     const onAfterPrint = () => setPrintEntry(null);
@@ -84,11 +113,19 @@ export default function SalesReport() {
     navigate('/daily-entry');
   };
 
-  const handleDelete = (id: string) => {
-    deleteEntry(id);
+  const handleDelete = async (id: string) => {
+    if (!isOnline) {
+      toast({
+        title: 'Offline',
+        description: 'Cannot delete while offline',
+        variant: 'destructive',
+      });
+      return;
+    }
+    await deleteDailyEntry(id);
     toast({
       title: 'Entry Deleted',
-      description: 'The daily entry has been deleted.',
+      description: 'The daily entry has been deleted from the cloud.',
     });
   };
 
@@ -163,7 +200,7 @@ export default function SalesReport() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="min-w-[800px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>

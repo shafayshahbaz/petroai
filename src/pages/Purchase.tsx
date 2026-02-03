@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { usePurchaseStore } from '@/store/purchase-store';
+import { useCloudData, CloudPurchase, CloudTank } from '@/contexts/CloudDataContext';
 import { formatAmount, formatLiters } from '@/lib/format';
 import { Plus, Truck, Package, History, Trash2, Eye, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
@@ -13,36 +13,78 @@ import { toast } from 'sonner';
 import { PurchaseEntry } from '@/types/purchase';
 import { InvoiceViewDialog } from '@/components/purchase/InvoiceViewDialog';
 import { InvoiceEditDialog } from '@/components/purchase/InvoiceEditDialog';
+import { FuelType } from '@/types/petrol-pump';
+
+// Convert cloud purchase to local format for dialogs
+function cloudToLocalPurchase(cloud: CloudPurchase): PurchaseEntry {
+  return {
+    id: cloud.id,
+    invoiceNumber: cloud.invoice_number,
+    invoiceDate: cloud.invoice_date,
+    supplierName: cloud.supplier_name,
+    totalInvoiceValue: cloud.total_invoice_value,
+    chambers: cloud.chambers || [],
+    densityCheck: cloud.density_check,
+    stockVerifications: cloud.stock_verifications || [],
+    status: cloud.status as 'draft' | 'completed',
+    createdAt: cloud.created_at,
+    updatedAt: cloud.updated_at,
+  };
+}
+
+// Convert cloud tank to local format
+function cloudToLocalTank(cloud: CloudTank) {
+  return {
+    id: cloud.id,
+    name: cloud.name,
+    fuelType: cloud.fuel_type as FuelType,
+    capacity: cloud.capacity,
+    currentStock: cloud.current_stock,
+    createdAt: cloud.created_at,
+    updatedAt: cloud.updated_at,
+  };
+}
 
 export default function Purchase() {
   const navigate = useNavigate();
-  const { tanks, purchases, initializeTanks, deletePurchase } = usePurchaseStore();
+  const { tanks: cloudTanks, purchases: cloudPurchases, deletePurchase, isOnline } = useCloudData();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<PurchaseEntry | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+  // Convert cloud data to local format
+  const tanks = useMemo(() => cloudTanks.map(cloudToLocalTank), [cloudTanks]);
+  const purchases = useMemo(() => cloudPurchases.map(cloudToLocalPurchase), [cloudPurchases]);
   
   useEffect(() => {
-    initializeTanks();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [initializeTanks]);
+  }, []);
 
-  const recentPurchases = [...purchases]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 10);
+  const recentPurchases = useMemo(() => 
+    [...purchases]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10),
+    [purchases]
+  );
 
   const handleDeleteClick = (purchase: PurchaseEntry) => {
     setSelectedPurchase(purchase);
     setDeleteDialogOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (selectedPurchase) {
-      deletePurchase(selectedPurchase.id);
-      toast.success(`Invoice ${selectedPurchase.invoiceNumber} deleted`);
-      setDeleteDialogOpen(false);
-      setSelectedPurchase(null);
+  const handleConfirmDelete = async () => {
+    if (!selectedPurchase) return;
+    
+    if (!isOnline) {
+      toast.error('Cannot delete while offline');
+      return;
     }
+    
+    await deletePurchase(selectedPurchase.id);
+    toast.success(`Invoice ${selectedPurchase.invoiceNumber} deleted`);
+    setDeleteDialogOpen(false);
+    setSelectedPurchase(null);
   };
 
   const handleViewClick = (purchase: PurchaseEntry) => {
@@ -149,7 +191,8 @@ export default function Purchase() {
         </CardHeader>
         <CardContent>
           {recentPurchases.length > 0 ? (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -216,6 +259,7 @@ export default function Purchase() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           ) : (
             <div className="text-center py-12">
               <Truck className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
