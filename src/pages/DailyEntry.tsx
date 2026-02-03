@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
-import { ChevronLeft, ChevronRight, Check, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
@@ -14,7 +14,14 @@ import { StepLubeSales } from '@/components/daily-entry/StepLubeSales';
 import { StepExpensesAndPayments } from '@/components/daily-entry/StepExpensesAndPayments';
 import { cn } from '@/lib/utils';
 import { FuelType, DailyEntry as DailyEntryType, Nozzle, DEFAULT_FUEL_RATES } from '@/types/petrol-pump';
-import { supabase } from '@/integrations/supabase/client';
+import { 
+  createDailySale, 
+  updateDailySale, 
+  buildNozzleTankMap,
+  updateDebtorOutstanding,
+  revertDebtorOutstanding,
+  NozzleReading
+} from '@/services/transactionService';
 
 const steps = [
   { id: 1, title: 'Rates & Staff', description: 'Set fuel rates and shift details' },
@@ -66,15 +73,16 @@ export default function DailyEntry() {
     nozzles: cloudNozzles, 
     getConnectedNozzles, 
     isOnline, 
-    createDailyEntry, 
-    updateDailyEntry,
-    updateTank, 
     getTankForNozzle, 
-    updateDebtor,
-    dailyEntries: cloudEntries 
+    dailyEntries: cloudEntries,
+    refreshData,
   } = useCloudData();
   const { clientId } = useAuth();
   const connectedNozzles = getConnectedNozzles();
+  
+  // Saving state and original nozzles ref for edit mode
+  const [isSaving, setIsSaving] = useState(false);
+  const originalNozzlesRef = useRef<NozzleReading[] | null>(null);
 
   // Get last closing readings from cloud entries for carry-forward
   const lastClosingReadings = useMemo(() => {
@@ -233,6 +241,19 @@ export default function DailyEntry() {
     }
   };
 
+  // Store original nozzles when entering edit mode
+  useEffect(() => {
+    if (isEditMode && currentEntry && !originalNozzlesRef.current) {
+      originalNozzlesRef.current = currentEntry.nozzles?.map(n => ({
+        id: n.id,
+        fuelType: n.fuelType,
+        openingReading: n.openingReading,
+        closingReading: n.closingReading,
+        label: (n as any).label,
+      })) || null;
+    }
+  }, [isEditMode, currentEntry]);
+
   const handleSave = async () => {
     // Normalize empty closing readings to opening readings (no sale scenario)
     normalizeNozzleReadings();
@@ -265,86 +286,116 @@ export default function DailyEntry() {
       });
       return;
     }
+
+    setIsSaving(true);
     
-    // Prepare the cloud entry data with nozzle labels
-    const nozzlesWithLabels = (currentEntry.nozzles || []).map(n => {
-      const cloudNozzle = cloudNozzles.find(cn => cn.id === n.id);
-      return {
-        ...n,
-        label: cloudNozzle?.label || n.id,
-        closingReading: n.closingReading === 0 && n.openingReading > 0 ? n.openingReading : n.closingReading,
-      };
-    });
-
-    const fuelRatesData = currentEntry.fuelRates 
-      ? { ...currentEntry.fuelRates } as Record<string, number> 
-      : { MS: 0, HSD: 0, POWER: 0 };
-    const testingDeductionData = currentEntry.testingDeduction 
-      ? { ...currentEntry.testingDeduction } as Record<string, number> 
-      : { MS: 0, HSD: 0, POWER: 0 };
-
-    const entryData = {
-      date: currentEntry.date || new Date().toISOString().split('T')[0],
-      shift_name: currentEntry.shiftName || null,
-      fuel_rates: fuelRatesData,
-      nozzles: nozzlesWithLabels,
-      lube_items: currentEntry.lubeItems || [],
-      expenses: currentEntry.expenses || [],
-      incomes: currentEntry.incomes || [],
-      credit_sales: currentEntry.creditSales || [],
-      upi_collection: currentEntry.upiCollection || 0,
-      cash_deposit: currentEntry.cashDeposit || 0,
-      opening_balance: currentEntry.openingBalance || 0,
-      testing_deduction: testingDeductionData,
-    };
-
     try {
+      // Build nozzle-to-tank mapping
+      const nozzleTankMap = buildNozzleTankMap(cloudNozzles);
+      
+      // Prepare the entry data with nozzle labels
+      const nozzlesWithLabels: NozzleReading[] = (currentEntry.nozzles || []).map(n => {
+        const cloudNozzle = cloudNozzles.find(cn => cn.id === n.id);
+        return {
+          id: n.id,
+          fuelType: n.fuelType,
+          openingReading: n.openingReading,
+          closingReading: n.closingReading === 0 && n.openingReading > 0 ? n.openingReading : n.closingReading,
+          label: cloudNozzle?.label || n.id,
+          machineId: n.machineId,
+          nozzleNumber: n.nozzleNumber,
+        };
+      });
+
+      const fuelRatesData = currentEntry.fuelRates 
+        ? { ...currentEntry.fuelRates } as Record<string, number> 
+        : { MS: 0, HSD: 0, POWER: 0 };
+      const testingDeductionData = currentEntry.testingDeduction 
+        ? { ...currentEntry.testingDeduction } as Record<string, number> 
+        : { MS: 0, HSD: 0, POWER: 0 };
+
+      const entryData = {
+        date: currentEntry.date || new Date().toISOString().split('T')[0],
+        shift_name: currentEntry.shiftName || null,
+        fuel_rates: fuelRatesData,
+        nozzles: nozzlesWithLabels,
+        lube_items: currentEntry.lubeItems || [],
+        expenses: currentEntry.expenses || [],
+        incomes: currentEntry.incomes || [],
+        credit_sales: currentEntry.creditSales || [],
+        upi_collection: currentEntry.upiCollection || 0,
+        cash_deposit: currentEntry.cashDeposit || 0,
+        opening_balance: currentEntry.openingBalance || 0,
+        testing_deduction: testingDeductionData,
+      };
+
       if (isEditMode && editId) {
-        // Update existing entry
-        await updateDailyEntry(editId, entryData);
+        // UPDATE: Use transaction service for atomic stock adjustment
+        const oldNozzles = originalNozzlesRef.current || [];
         
+        // Revert old debtor amounts first
+        const oldEntry = cloudEntries.find(e => e.id === editId);
+        if (oldEntry?.credit_sales) {
+          await revertDebtorOutstanding(
+            (oldEntry.credit_sales as any[]).map(cs => ({
+              debtorId: cs.debtorId,
+              amount: cs.amount,
+            }))
+          );
+        }
+        
+        // Process the update with atomic stock adjustment
+        const result = await updateDailySale(
+          clientId,
+          editId,
+          entryData,
+          oldNozzles,
+          nozzleTankMap
+        );
+
+        if (!result.success) {
+          throw new Error('Failed to update daily entry');
+        }
+
+        // Update debtor outstanding for new credit sales
+        await updateDebtorOutstanding(
+          (currentEntry.creditSales || []).map((cs: any) => ({
+            debtorId: cs.debtorId,
+            amount: cs.amount,
+          }))
+        );
+
         toast({
           title: 'Entry Updated',
-          description: 'Daily entry has been updated successfully.',
+          description: 'Daily entry and stock levels have been updated atomically.',
         });
       } else {
-        // Create new daily entry in cloud
-        const newEntry = await createDailyEntry(entryData);
+        // CREATE: Use transaction service for atomic stock deduction
+        const result = await createDailySale(clientId, entryData, nozzleTankMap);
 
-        if (!newEntry) {
+        if (!result.success) {
           throw new Error('Failed to create daily entry');
         }
 
-        // Deduct stock from tanks based on nozzle readings (only for new entries)
+        // Update debtor outstanding amounts for credit sales
+        await updateDebtorOutstanding(
+          (currentEntry.creditSales || []).map((cs: any) => ({
+            debtorId: cs.debtorId,
+            amount: cs.amount,
+          }))
+        );
+
+        // Check for negative stock warning
         let hasNegativeStock = false;
         for (const nozzle of nozzlesWithLabels) {
-          const testDeduction = (entryData.testing_deduction as Record<string, number>)?.[nozzle.fuelType] || 0;
+          const testDeduction = testingDeductionData[nozzle.fuelType] || 0;
           const liters = Math.max(0, nozzle.closingReading - nozzle.openingReading - testDeduction);
           
           if (liters > 0) {
             const tank = getTankForNozzle(nozzle.id);
-
-            if (tank) {
-              const newStock = tank.current_stock - liters;
-              if (newStock < 0) hasNegativeStock = true;
-              await updateTank(tank.id, { current_stock: newStock });
-            }
-          }
-        }
-
-        // Update debtor outstanding amounts for credit sales
-        for (const cs of (currentEntry.creditSales || []) as any[]) {
-          if (cs.debtorId && cs.amount > 0) {
-            const { data: debtor } = await supabase
-              .from('debtors')
-              .select('total_outstanding')
-              .eq('id', cs.debtorId)
-              .single();
-
-            if (debtor) {
-              await updateDebtor(cs.debtorId, { 
-                total_outstanding: debtor.total_outstanding + cs.amount 
-              });
+            if (tank && (tank.current_stock - liters) < 0) {
+              hasNegativeStock = true;
+              break;
             }
           }
         }
@@ -358,22 +409,29 @@ export default function DailyEntry() {
         } else {
           toast({
             title: 'Entry Saved',
-            description: 'Daily entry has been saved to cloud successfully.',
+            description: 'Daily entry and stock levels have been saved atomically.',
           });
         }
       }
+
+      // Trigger data refresh
+      await refreshData();
+      
+      // Clear and navigate
+      clearCurrentEntry();
+      originalNozzlesRef.current = null;
+      navigate('/sales-report');
+      
     } catch (error: any) {
       console.error('Error saving daily entry:', error);
       toast({
         variant: 'destructive',
-        title: 'Error Saving Entry',
-        description: error.message || 'Failed to save entry to cloud',
+        title: 'Transaction Failed',
+        description: error.message || 'Failed to save entry. No changes were made.',
       });
-      return;
+    } finally {
+      setIsSaving(false);
     }
-
-    clearCurrentEntry();
-    navigate('/sales-report');
   };
 
   const handleCancel = () => {
@@ -508,9 +566,17 @@ export default function DailyEntry() {
             <ChevronRight className="w-4 h-4 ml-2" />
           </Button>
         ) : (
-          <Button onClick={handleSave} className="bg-success hover:bg-success/90">
-            <Save className="w-4 h-4 mr-2" />
-            {isEditMode ? 'Update Entry' : 'Save Entry'}
+          <Button 
+            onClick={handleSave} 
+            disabled={isSaving}
+            className="bg-success hover:bg-success/90"
+          >
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
+            {isSaving ? 'Saving...' : isEditMode ? 'Update Entry' : 'Save Entry'}
           </Button>
         )}
       </div>

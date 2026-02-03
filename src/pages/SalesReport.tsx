@@ -7,8 +7,7 @@ import {
   Printer, 
   Search, 
   Calendar,
-  ChevronDown,
-  Eye
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,9 +39,11 @@ import {
 } from '@/components/ui/dialog';
 import { calculateTotals } from '@/store/petrol-pump-store';
 import { useCloudData, CloudDailyEntry } from '@/contexts/CloudDataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { DailyEntry, FuelType } from '@/types/petrol-pump';
 import { PrintableReport } from '@/components/report/PrintableReport';
+import { deleteDailySale, buildNozzleTankMap, revertDebtorOutstanding } from '@/services/transactionService';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -79,8 +80,10 @@ export default function SalesReport() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEntry, setSelectedEntry] = useState<DailyEntry | null>(null);
   const [printEntry, setPrintEntry] = useState<DailyEntry | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   
-  const { dailyEntries: cloudEntries, deleteDailyEntry, isOnline } = useCloudData();
+  const { dailyEntries: cloudEntries, nozzles: cloudNozzles, isOnline, refreshData } = useCloudData();
+  const { clientId } = useAuth();
 
   // Convert cloud entries to local format for display
   const entries = useMemo(() => 
@@ -113,19 +116,56 @@ export default function SalesReport() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!isOnline) {
+    if (!isOnline || !clientId) {
       toast({
-        title: 'Offline',
-        description: 'Cannot delete while offline',
+        title: 'Cannot Delete',
+        description: !isOnline ? 'You are currently offline' : 'Client ID not found',
         variant: 'destructive',
       });
       return;
     }
-    await deleteDailyEntry(id);
-    toast({
-      title: 'Entry Deleted',
-      description: 'The daily entry has been deleted from the cloud.',
-    });
+    
+    setDeletingId(id);
+    
+    try {
+      // Get the entry to revert debtor amounts
+      const cloudEntry = cloudEntries.find(e => e.id === id);
+      if (cloudEntry?.credit_sales) {
+        await revertDebtorOutstanding(
+          (cloudEntry.credit_sales as any[]).map(cs => ({
+            debtorId: cs.debtorId,
+            amount: cs.amount,
+          }))
+        );
+      }
+      
+      // Build nozzle-to-tank mapping for stock restoration
+      const nozzleTankMap = buildNozzleTankMap(cloudNozzles);
+      
+      // Delete with atomic stock restoration
+      const result = await deleteDailySale(clientId, id, nozzleTankMap);
+      
+      if (!result.success) {
+        throw new Error('Failed to delete entry');
+      }
+      
+      // Trigger data refresh
+      await refreshData();
+      
+      toast({
+        title: 'Entry Deleted',
+        description: 'The daily entry has been deleted and stock levels restored.',
+      });
+    } catch (error: any) {
+      console.error('Error deleting entry:', error);
+      toast({
+        title: 'Delete Failed',
+        description: error.message || 'Failed to delete entry',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handlePrint = (entry: DailyEntry) => {
@@ -253,8 +293,13 @@ export default function SalesReport() {
                                     size="icon"
                                     className="text-destructive hover:text-destructive"
                                     title="Delete Entry"
+                                    disabled={deletingId === entry.id}
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    {deletingId === entry.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="w-4 h-4" />
+                                    )}
                                   </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
@@ -263,6 +308,7 @@ export default function SalesReport() {
                                     <AlertDialogDescription>
                                       This will permanently delete the entry for{' '}
                                       {format(parseISO(entry.date), 'dd MMM yyyy')}.
+                                      Stock levels will be restored to tanks.
                                       This action cannot be undone.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
@@ -272,7 +318,7 @@ export default function SalesReport() {
                                       onClick={() => handleDelete(entry.id)}
                                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
-                                      Delete
+                                      Delete & Restore Stock
                                     </AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
