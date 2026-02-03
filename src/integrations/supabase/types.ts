@@ -435,6 +435,17 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: never; Returns: boolean }
+      process_daily_sale: {
+        Args: {
+          p_client_id: string
+          p_entry_data?: Json
+          p_entry_id?: string
+          p_nozzle_tank_map?: Json
+          p_old_nozzles?: Json
+          p_operation: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "super_admin" | "pump_owner"
