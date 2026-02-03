@@ -38,7 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
+import { calculateTotals } from '@/store/petrol-pump-store';
 import { useCloudData, CloudDailyEntry } from '@/contexts/CloudDataContext';
 import { useToast } from '@/hooks/use-toast';
 import { DailyEntry, FuelType } from '@/types/petrol-pump';
@@ -80,7 +80,6 @@ export default function SalesReport() {
   const [selectedEntry, setSelectedEntry] = useState<DailyEntry | null>(null);
   const [printEntry, setPrintEntry] = useState<DailyEntry | null>(null);
   
-  const { loadEntryForEdit } = usePetrolPumpStore();
   const { dailyEntries: cloudEntries, deleteDailyEntry, isOnline } = useCloudData();
 
   // Convert cloud entries to local format for display
@@ -109,8 +108,8 @@ export default function SalesReport() {
   }, [entries, searchQuery]);
 
   const handleEdit = (entry: DailyEntry) => {
-    loadEntryForEdit(entry.id);
-    navigate('/daily-entry');
+    // Navigate to daily entry with edit mode query param
+    navigate(`/daily-entry?edit=${entry.id}`);
   };
 
   const handleDelete = async (id: string) => {

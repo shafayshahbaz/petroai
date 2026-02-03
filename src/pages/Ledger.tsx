@@ -568,6 +568,23 @@ export default function Ledger() {
     );
   }
 
+  // Ledger search state for transaction filtering
+  const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
+
+  // Filter ledger data based on search query (searches all columns)
+  const filteredLedgerData = useMemo(() => {
+    if (!ledgerSearchQuery.trim()) return ledgerData;
+    
+    const query = ledgerSearchQuery.toLowerCase();
+    return ledgerData.filter(row => 
+      row.date.includes(query) ||
+      row.particulars.toLowerCase().includes(query) ||
+      (row.remarks && row.remarks.toLowerCase().includes(query)) ||
+      row.debit.toString().includes(query) ||
+      row.credit.toString().includes(query)
+    );
+  }, [ledgerData, ledgerSearchQuery]);
+
   // Render Individual Ledger View
   return (
     <div className="space-y-6 animate-fade-in">
@@ -622,7 +639,7 @@ export default function Ledger() {
             size="sm"
             onClick={() => {
               let runningBalance = openingBalance;
-              const dataWithBalance = ledgerData.map((row) => {
+              const dataWithBalance = filteredLedgerData.map((row) => {
                 runningBalance += row.debit - row.credit;
                 return { ...row, balance: runningBalance };
               });
@@ -638,14 +655,14 @@ export default function Ledger() {
             onClick={() => window.print()}
           >
             <Download className="h-4 w-4 mr-2" />
-            Export PDF
+            Print {ledgerSearchQuery ? 'Filtered' : ''} View
           </Button>
         </div>
       </div>
 
-      {/* Date Filters */}
+      {/* Date Filters and Search */}
       <Card>
-        <CardContent className="py-4">
+        <CardContent className="py-4 space-y-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">From:</span>
@@ -698,12 +715,30 @@ export default function Ledger() {
               Reset to FY
             </Button>
           </div>
+
+          {/* Universal Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by date, particulars, remarks, or amount..."
+              value={ledgerSearchQuery}
+              onChange={(e) => setLedgerSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          {ledgerSearchQuery && (
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredLedgerData.length} of {ledgerData.length} transactions
+              {filteredLedgerData.length > 0 && ' • Print/Export will use filtered data'}
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Ledger Table */}
       <LedgerTransactionTable
-        transactions={ledgerData}
+        transactions={filteredLedgerData}
         showRemarks={selectedGroup === 'debtors'}
         openingBalance={openingBalance}
       />
