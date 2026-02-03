@@ -19,7 +19,7 @@ export function DataWipeSection() {
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState(false);
   const [isWiping, setIsWiping] = useState(false);
 
-  // Option A: Delete business data but keep account structure (CLOUD-FIRST)
+  // Option A: Delete ALL business data including tanks/nozzles (FULL RESET)
   const handleDataWipe = async () => {
     if (!clientId || !isOnline) {
       toast({
@@ -32,7 +32,7 @@ export function DataWipeSection() {
 
     setIsWiping(true);
     try {
-      // Delete all cloud data in order (respecting foreign key constraints)
+      // Delete ALL cloud data in order (respecting foreign key constraints)
       // 1. Delete daily entries (sales data)
       const { error: entriesError } = await supabase
         .from('daily_entries')
@@ -47,27 +47,58 @@ export function DataWipeSection() {
         .eq('client_id', clientId);
       if (purchasesError) throw purchasesError;
 
-      // 3. Reset tank stock to 0 (keep tanks but clear stock)
+      // 3. Delete debtors completely
+      const { error: debtorsError } = await supabase
+        .from('debtors')
+        .delete()
+        .eq('client_id', clientId);
+      if (debtorsError) throw debtorsError;
+
+      // 4. Delete nozzles (must come before tanks due to foreign key)
+      const { error: nozzlesError } = await supabase
+        .from('nozzles')
+        .delete()
+        .eq('client_id', clientId);
+      if (nozzlesError) throw nozzlesError;
+
+      // 5. Delete tanks
       const { error: tanksError } = await supabase
         .from('tanks')
-        .update({ current_stock: 0 })
+        .delete()
         .eq('client_id', clientId);
       if (tanksError) throw tanksError;
 
-      // 4. Reset debtor balances
-      const { error: debtorsError } = await supabase
-        .from('debtors')
-        .update({ total_outstanding: 0 })
+      // 6. Reset client settings
+      const { error: settingsError } = await supabase
+        .from('client_settings')
+        .delete()
         .eq('client_id', clientId);
-      if (debtorsError) throw debtorsError;
+      if (settingsError) throw settingsError;
+
+      // 7. Reset client profile to trigger welcome wizard
+      const { error: clientError } = await supabase
+        .from('clients')
+        .update({ 
+          pump_name: 'My Fuel Station',
+          address: null,
+          gst_number: null,
+          is_first_login: true 
+        })
+        .eq('id', clientId);
+      if (clientError) throw clientError;
 
       // Refresh local state from cloud
       await refreshData();
 
       toast({
-        title: 'Data Cleared Successfully',
-        description: 'All sales, purchases, and transaction data has been deleted from the cloud. Your tanks and account remain intact.',
+        title: 'All Data Cleared',
+        description: 'All business data including tanks, nozzles, sales, and purchases has been deleted. You will be redirected to setup your station again.',
       });
+
+      // Redirect to dashboard to trigger setup wizard
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
     } catch (error: any) {
       console.error('Data wipe error:', error);
       toast({

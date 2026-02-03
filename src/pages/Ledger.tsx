@@ -13,11 +13,13 @@ import {
   Plus,
   Banknote,
   ArrowDownToLine,
-  ArrowUpFromLine
+  ArrowUpFromLine,
+  Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
+import { Input } from '@/components/ui/input';
 import {
   Popover,
   PopoverContent,
@@ -140,6 +142,9 @@ export default function Ledger() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [bankActionModalOpen, setBankActionModalOpen] = useState(false);
   const [bankActionType, setBankActionType] = useState<'deposit' | 'withdrawal'>('deposit');
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Calculate group summaries
   const groupSummaries = useMemo(() => {
@@ -464,6 +469,15 @@ export default function Ledger() {
       cash: 'Cash Account',
     };
 
+    // Filter accounts based on search query
+    const filteredDebtors = debtors.filter(d => 
+      d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (d.contactNumber && d.contactNumber.includes(searchQuery))
+    );
+    const filteredExpenseHeads = getUniqueExpenseHeads().filter(h =>
+      h.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
     return (
       <div className="space-y-6 animate-fade-in">
         <div>
@@ -475,15 +489,28 @@ export default function Ledger() {
           <p className="text-muted-foreground">Select an account to view transactions</p>
         </div>
 
+        {/* Search Bar */}
+        {(selectedGroup === 'debtors' || selectedGroup === 'expenses') && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={`Search ${selectedGroup === 'debtors' ? 'debtors' : 'expense heads'}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        )}
+
         <Card>
           <CardContent className="p-0">
             {selectedGroup === 'debtors' && (
-              debtors.length === 0 ? (
+              filteredDebtors.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
-                  No debtors found. Add debtors from the Debtors page.
+                  {searchQuery ? `No debtors matching "${searchQuery}"` : 'No debtors found. Add debtors from the Debtors page.'}
                 </div>
               ) : (
-                debtors.map((debtor) => (
+                filteredDebtors.map((debtor) => (
                   <AccountListItem
                     key={debtor.id}
                     name={debtor.name}
@@ -505,12 +532,12 @@ export default function Ledger() {
             )}
 
             {selectedGroup === 'expenses' && (
-              getUniqueExpenseHeads().length === 0 ? (
+              filteredExpenseHeads.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
-                  No expenses recorded yet.
+                  {searchQuery ? `No expense heads matching "${searchQuery}"` : 'No expenses recorded yet.'}
                 </div>
               ) : (
-                getUniqueExpenseHeads().map((head) => {
+                filteredExpenseHeads.map((head) => {
                   const total = entries.reduce((sum, e) => {
                     return sum + (e.expenses?.filter(exp => exp.description === head)
                       .reduce((s, exp) => s + exp.amount, 0) || 0);

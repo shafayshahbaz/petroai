@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePetrolPumpStore } from '@/store/petrol-pump-store';
 import { useCloudData } from '@/contexts/CloudDataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { StepRatesAndStaff } from '@/components/daily-entry/StepRatesAndStaff';
 import { StepMeterReadings } from '@/components/daily-entry/StepMeterReadings';
@@ -13,6 +14,7 @@ import { StepLubeSales } from '@/components/daily-entry/StepLubeSales';
 import { StepExpensesAndPayments } from '@/components/daily-entry/StepExpensesAndPayments';
 import { cn } from '@/lib/utils';
 import { FuelType } from '@/types/petrol-pump';
+import { supabase } from '@/integrations/supabase/client';
 
 const steps = [
   { id: 1, title: 'Rates & Staff', description: 'Set fuel rates and shift details' },
@@ -37,7 +39,8 @@ export default function DailyEntry() {
   } = usePetrolPumpStore();
   
   // Get connected nozzles from cloud data
-  const { nozzles: cloudNozzles, getConnectedNozzles, isOnline } = useCloudData();
+  const { nozzles: cloudNozzles, getConnectedNozzles, isOnline, createDailyEntry, updateTank, getTankForNozzle, updateDebtor } = useCloudData();
+  const { clientId } = useAuth();
   const connectedNozzles = getConnectedNozzles();
 
   // Initialize or sync entry on mount
@@ -94,7 +97,7 @@ export default function DailyEntry() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Normalize empty closing readings to opening readings (no sale scenario)
     normalizeNozzleReadings();
     
@@ -108,22 +111,126 @@ export default function DailyEntry() {
       });
       return;
     }
-    
-    const result = saveEntry();
-    
-    // Check for negative stock warning
-    if (result && result.hasNegativeStock) {
+
+    if (!currentEntry || !isOnline) {
       toast({
         variant: 'destructive',
-        title: 'Negative Stock Warning',
-        description: 'One or more tanks now have negative stock. Please verify your readings or check for calibration errors.',
+        title: 'Cannot Save',
+        description: isOnline ? 'No entry data found' : 'You are currently offline',
       });
-    } else {
-      toast({
-        title: 'Entry Saved',
-        description: 'Daily entry has been saved successfully.',
-      });
+      return;
     }
+
+    if (!clientId) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot Save',
+        description: 'Client ID not found. Please log in again.',
+      });
+      return;
+    }
+    
+    // Prepare the cloud entry data with nozzle labels
+    const nozzlesWithLabels = (currentEntry.nozzles || []).map(n => {
+      const cloudNozzle = cloudNozzles.find(cn => cn.id === n.id);
+      return {
+        ...n,
+        label: cloudNozzle?.label || n.id,
+        closingReading: n.closingReading === 0 && n.openingReading > 0 ? n.openingReading : n.closingReading,
+      };
+    });
+
+    const fuelRatesData = currentEntry.fuelRates 
+      ? { ...currentEntry.fuelRates } as Record<string, number> 
+      : { MS: 0, HSD: 0, POWER: 0 };
+    const testingDeductionData = currentEntry.testingDeduction 
+      ? { ...currentEntry.testingDeduction } as Record<string, number> 
+      : { MS: 0, HSD: 0, POWER: 0 };
+
+    const entryData = {
+      date: currentEntry.date || new Date().toISOString().split('T')[0],
+      shift_name: currentEntry.shiftName || null,
+      fuel_rates: fuelRatesData,
+      nozzles: nozzlesWithLabels,
+      lube_items: currentEntry.lubeItems || [],
+      expenses: currentEntry.expenses || [],
+      incomes: currentEntry.incomes || [],
+      credit_sales: currentEntry.creditSales || [],
+      upi_collection: currentEntry.upiCollection || 0,
+      cash_deposit: currentEntry.cashDeposit || 0,
+      opening_balance: currentEntry.openingBalance || 0,
+      testing_deduction: testingDeductionData,
+    };
+
+    try {
+      // Create daily entry in cloud using the context function
+      const newEntry = await createDailyEntry(entryData);
+
+      if (!newEntry) {
+        throw new Error('Failed to create daily entry');
+      }
+
+      // Now deduct stock from tanks based on nozzle readings
+      let hasNegativeStock = false;
+      for (const nozzle of nozzlesWithLabels) {
+        const testDeduction = (entryData.testing_deduction as Record<string, number>)?.[nozzle.fuelType] || 0;
+        const liters = Math.max(0, nozzle.closingReading - nozzle.openingReading - testDeduction);
+        
+        if (liters > 0) {
+          // Find the tank connected to this nozzle
+          const tank = getTankForNozzle(nozzle.id);
+
+          if (tank) {
+            const newStock = tank.current_stock - liters;
+            if (newStock < 0) hasNegativeStock = true;
+            
+            // Update tank stock
+            await updateTank(tank.id, { current_stock: newStock });
+          }
+        }
+      }
+
+      // Update debtor outstanding amounts for credit sales
+      for (const cs of (currentEntry.creditSales || []) as any[]) {
+        if (cs.debtorId && cs.amount > 0) {
+          // Fetch current debtor balance from cloud
+          const { data: debtor } = await supabase
+            .from('debtors')
+            .select('total_outstanding')
+            .eq('id', cs.debtorId)
+            .single();
+
+          if (debtor) {
+            await updateDebtor(cs.debtorId, { 
+              total_outstanding: debtor.total_outstanding + cs.amount 
+            });
+          }
+        }
+      }
+
+      if (hasNegativeStock) {
+        toast({
+          variant: 'destructive',
+          title: 'Negative Stock Warning',
+          description: 'One or more tanks now have negative stock. Please verify your readings or check for calibration errors.',
+        });
+      } else {
+        toast({
+          title: 'Entry Saved',
+          description: 'Daily entry has been saved to cloud successfully.',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error saving daily entry:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error Saving Entry',
+        description: error.message || 'Failed to save entry to cloud',
+      });
+      return;
+    }
+
+    clearCurrentEntry();
     navigate('/sales-report');
   };
 
