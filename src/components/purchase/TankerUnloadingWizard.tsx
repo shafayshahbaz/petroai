@@ -223,7 +223,7 @@ export function TankerUnloadingWizard() {
     }
   };
 
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
     // Validate tank capacities before finalizing
     for (const verification of stockVerifications) {
       const tank = tanks.find(t => t.id === verification.tankId);
@@ -233,35 +233,46 @@ export function TankerUnloadingWizard() {
       }
     }
 
-    // Save the purchase entry - dip check is informational only
+    // Save the purchase entry to cloud - dip check is informational only
     const finalDensityCheck: DensityCheck = {
       ...densityCheck,
       status: 'OK', // Always OK since we removed strict validation
     };
     
-    const purchase = savePurchase({
-      invoiceNumber,
-      invoiceDate,
-      supplierName: supplierPlace, // Using supplierPlace now
-      totalInvoiceValue,
-      chambers,
-      densityCheck: finalDensityCheck,
-      stockVerifications,
-      status: 'completed',
-    });
+    try {
+      // Create purchase in cloud
+      const cloudPurchase = await createCloudPurchase({
+        invoice_number: invoiceNumber,
+        invoice_date: invoiceDate,
+        supplier_name: supplierPlace,
+        total_invoice_value: totalInvoiceValue,
+        chambers: chambers,
+        density_check: finalDensityCheck,
+        stock_verifications: stockVerifications,
+        status: 'completed',
+      });
 
-    // Update tank stocks
-    finalizeUnloading(purchase.id, stockVerifications);
+      if (!cloudPurchase) {
+        toast.error('Failed to save purchase to cloud');
+        return;
+      }
 
-    // Remember the price per liter for each fuel type for next invoice
-    const totalQtyByFuel: Record<string, number> = {};
-    chambers.forEach(c => {
-      totalQtyByFuel[c.fuelType] = (totalQtyByFuel[c.fuelType] || 0) + c.capacity;
-    });
-    // We don't have per-fuel price here, but this framework allows for future enhancement
+      // Update tank stocks in cloud
+      for (const verification of stockVerifications) {
+        const tank = tanks.find(t => t.id === verification.tankId);
+        if (tank) {
+          await updateCloudTank(verification.tankId, {
+            current_stock: verification.postUnloadStock
+          });
+        }
+      }
 
-    toast.success('Tanker unloading completed successfully!');
-    navigate('/purchase');
+      toast.success('Tanker unloading completed successfully!');
+      navigate('/purchase');
+    } catch (error) {
+      console.error('Error finalizing purchase:', error);
+      toast.error('Failed to complete tanker unloading');
+    }
   };
 
   return (

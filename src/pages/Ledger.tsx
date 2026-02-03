@@ -23,7 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { usePetrolPumpStore } from '@/store/petrol-pump-store';
+import { useCloudData, CloudDailyEntry, CloudDebtor } from '@/contexts/CloudDataContext';
 import { cn } from '@/lib/utils';
 import { formatAmount } from '@/lib/format';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -33,6 +33,7 @@ import { LedgerTransactionTable, LedgerTransaction } from '@/components/ledger/L
 import { PaymentReceiptModal } from '@/components/ledger/PaymentReceiptModal';
 import { BankActionModal } from '@/components/ledger/BankActionModal';
 import { toast } from 'sonner';
+import { DailyEntry, FuelType } from '@/types/petrol-pump';
 
 // Account group types
 type AccountGroup = 'debtors' | 'bank' | 'expenses' | 'cash';
@@ -48,6 +49,27 @@ function getFYDates() {
   return {
     start: new Date(fyStartYear, 3, 1),
     end: new Date(fyStartYear + 1, 2, 31),
+  };
+}
+
+// Helper to convert cloud entry to local format
+function cloudToLocalEntry(cloudEntry: CloudDailyEntry): DailyEntry {
+  return {
+    id: cloudEntry.id,
+    date: cloudEntry.date,
+    shiftName: cloudEntry.shift_name || undefined,
+    fuelRates: cloudEntry.fuel_rates as Record<FuelType, number>,
+    nozzles: cloudEntry.nozzles as any[],
+    lubeItems: cloudEntry.lube_items as any[],
+    expenses: cloudEntry.expenses as any[],
+    incomes: cloudEntry.incomes as any[],
+    creditSales: cloudEntry.credit_sales as any[],
+    upiCollection: cloudEntry.upi_collection,
+    cashDeposit: cloudEntry.cash_deposit,
+    openingBalance: cloudEntry.opening_balance,
+    testingDeduction: cloudEntry.testing_deduction as Record<FuelType, number>,
+    createdAt: cloudEntry.created_at,
+    updatedAt: cloudEntry.updated_at,
   };
 }
 
@@ -88,9 +110,19 @@ function exportToCSV(data: (LedgerTransaction & { balance: number })[], filename
 }
 
 export default function Ledger() {
-  const { entries, debtors, updateDebtor } = usePetrolPumpStore();
+  const { dailyEntries: cloudEntries, debtors: cloudDebtors, updateDebtor } = useCloudData();
   const { t } = useLanguage();
   const fyDates = getFYDates();
+
+  // Convert cloud data to local format
+  const entries = useMemo(() => cloudEntries.map(cloudToLocalEntry), [cloudEntries]);
+  const debtors = useMemo(() => cloudDebtors.map(d => ({
+    id: d.id,
+    name: d.name,
+    contactNumber: d.contact_number || undefined,
+    openingBalance: d.opening_balance,
+    totalOutstanding: d.total_outstanding,
+  })), [cloudDebtors]);
   
   // Navigation state
   const [viewMode, setViewMode] = useState<ViewMode>('groups');
@@ -359,9 +391,9 @@ export default function Ledger() {
 
     const debtor = debtors.find(d => d.id === selectedAccountId);
     if (debtor) {
-      // Update debtor's outstanding balance
+      // Update debtor's outstanding balance in cloud
       updateDebtor(selectedAccountId, {
-        totalOutstanding: Math.max(0, (debtor.totalOutstanding || 0) - data.amount),
+        total_outstanding: Math.max(0, (debtor.totalOutstanding || 0) - data.amount),
       });
       toast.success(`Receipt of ₹${formatAmount(data.amount)} recorded for ${debtor.name}`);
     }
