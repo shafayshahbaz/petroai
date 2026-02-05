@@ -5,6 +5,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
+import { format } from 'date-fns';
 
 export interface NozzleReading {
   id: string;
@@ -193,4 +194,77 @@ export async function revertDebtorOutstanding(
       }
     }
   }
+}
+
+/**
+ * Create ledger transaction entries for credit sales
+ * This ensures credit sales are recorded in the debtor's ledger
+ */
+export async function createCreditSaleLedgerEntries(
+  clientId: string,
+  entryDate: string,
+  creditSales: Array<{ debtorId: string; debtorName: string; amount: number; remarks?: string }>
+): Promise<void> {
+  for (const cs of creditSales) {
+    if (cs.debtorId && cs.amount > 0) {
+      await supabase
+        .from('ledger_transactions')
+        .insert({
+          client_id: clientId,
+          account_type: 'debtor',
+          account_id: cs.debtorId,
+          account_name: cs.debtorName,
+          transaction_date: entryDate,
+          transaction_type: 'DEBIT',
+          amount: cs.amount,
+          description: `Credit Sale - ${format(new Date(entryDate), 'dd MMM yyyy')}`,
+          remarks: cs.remarks || null,
+          reference_id: `credit-${cs.debtorId}-${entryDate}`,
+        });
+    }
+  }
+}
+
+/**
+ * Delete ledger transaction entries for a specific daily entry (for updates/deletes)
+ */
+export async function deleteCreditSaleLedgerEntries(
+  clientId: string,
+  entryDate: string
+): Promise<void> {
+  await supabase
+    .from('ledger_transactions')
+    .delete()
+    .eq('client_id', clientId)
+    .eq('account_type', 'debtor')
+    .eq('transaction_date', entryDate)
+    .like('description', 'Credit Sale -%');
+}
+
+/**
+ * Record a payment receipt in the ledger (CREDIT transaction to reduce debt)
+ */
+export async function recordPaymentReceipt(
+  clientId: string,
+  debtorId: string,
+  debtorName: string,
+  date: string,
+  amount: number,
+  paymentMode: string,
+  remarks?: string
+): Promise<void> {
+  await supabase
+    .from('ledger_transactions')
+    .insert({
+      client_id: clientId,
+      account_type: 'debtor',
+      account_id: debtorId,
+      account_name: debtorName,
+      transaction_date: date,
+      transaction_type: 'CREDIT',
+      amount: amount,
+      description: `Payment Received - ${paymentMode}`,
+      remarks: remarks || null,
+      reference_id: `payment-${debtorId}-${date}-${Date.now()}`,
+    });
 }

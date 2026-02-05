@@ -20,7 +20,9 @@ import {
   buildNozzleTankMap,
   updateDebtorOutstanding,
   revertDebtorOutstanding,
-  NozzleReading
+  NozzleReading,
+  createCreditSaleLedgerEntries,
+  deleteCreditSaleLedgerEntries
 } from '@/services/transactionService';
 
 const steps = [
@@ -342,6 +344,10 @@ export default function DailyEntry() {
               amount: cs.amount,
             }))
           );
+          // Delete old ledger entries for this date
+          if (clientId) {
+            await deleteCreditSaleLedgerEntries(clientId, oldEntry.date);
+          }
         }
         
         // Process the update with atomic stock adjustment
@@ -364,6 +370,18 @@ export default function DailyEntry() {
             amount: cs.amount,
           }))
         );
+        
+        // Create ledger entries for credit sales
+        await createCreditSaleLedgerEntries(
+          clientId,
+          entryData.date,
+          (currentEntry.creditSales || []).map((cs: any) => ({
+            debtorId: cs.debtorId,
+            debtorName: cs.debtorName,
+            amount: cs.amount,
+            remarks: cs.remarks,
+          }))
+        );
 
         toast({
           title: 'Entry Updated',
@@ -382,6 +400,18 @@ export default function DailyEntry() {
           (currentEntry.creditSales || []).map((cs: any) => ({
             debtorId: cs.debtorId,
             amount: cs.amount,
+          }))
+        );
+        
+        // Create ledger entries for credit sales
+        await createCreditSaleLedgerEntries(
+          clientId,
+          entryData.date,
+          (currentEntry.creditSales || []).map((cs: any) => ({
+            debtorId: cs.debtorId,
+            debtorName: cs.debtorName,
+            amount: cs.amount,
+            remarks: cs.remarks,
           }))
         );
 
