@@ -636,7 +636,8 @@ export function calculateTotals(entry: DailyEntry | Partial<DailyEntry>): {
     + (entry.upiCollection || 0) 
     + (entry.cashDeposit || 0)
     + totalCreditSales;
-  const cashInHand = grandTotalIncome - totalExpenses;
+  // Round to 2 decimal places to avoid floating-point precision issues
+  const cashInHand = Math.round((grandTotalIncome - totalExpenses) * 100) / 100;
 
   return {
     fuelSales,

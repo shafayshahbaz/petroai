@@ -69,7 +69,8 @@ function calculateCloudTotals(entry: any) {
     + (entry.upi_collection || 0) 
     + (entry.cash_deposit || 0)
     + totalCreditSales;
-  const cashInHand = grandTotalIncome - totalExpenses;
+  // Round to 2 decimal places to avoid floating-point precision issues
+  const cashInHand = Math.round((grandTotalIncome - totalExpenses) * 100) / 100;
 
   return {
     fuelSales,
