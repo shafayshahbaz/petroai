@@ -206,6 +206,62 @@ export type Database = {
           },
         ]
       }
+      ledger_transactions: {
+        Row: {
+          account_id: string
+          account_name: string
+          account_type: string
+          amount: number
+          client_id: string
+          created_at: string
+          description: string
+          id: string
+          reference_id: string | null
+          remarks: string | null
+          transaction_date: string
+          transaction_type: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          account_name: string
+          account_type: string
+          amount?: number
+          client_id: string
+          created_at?: string
+          description: string
+          id?: string
+          reference_id?: string | null
+          remarks?: string | null
+          transaction_date: string
+          transaction_type: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          account_name?: string
+          account_type?: string
+          amount?: number
+          client_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          reference_id?: string | null
+          remarks?: string | null
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_transactions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nozzles: {
         Row: {
           client_id: string

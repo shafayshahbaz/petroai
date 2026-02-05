@@ -320,6 +320,62 @@
   .text-red-600 {
     color: #dc2626 !important;
   }
+
+  /* Ledger Print Styles - Professional A4 Layout */
+  .ledger-print-container {
+    background: white !important;
+    color: black !important;
+    padding: 15mm !important;
+    width: 100% !important;
+    max-width: 210mm !important;
+  }
+
+  .ledger-print-container table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt !important;
+  }
+
+  .ledger-print-container th,
+  .ledger-print-container td {
+    border: 1px solid #333 !important;
+    padding: 6px 8px !important;
+    text-align: left !important;
+  }
+
+  .ledger-print-container th {
+    background: #f0f0f0 !important;
+    font-weight: bold !important;
+  }
+
+  .ledger-print-container .text-right {
+    text-align: right !important;
+  }
+
+  .ledger-print-container h1,
+  .ledger-print-container h2,
+  .ledger-print-container h3 {
+    color: black !important;
+    margin-bottom: 10px !important;
+  }
+
+  /* Ensure cards have visible borders in print */
+  .ledger-print-container .card,
+  .ledger-print-container [class*="Card"] {
+    background: white !important;
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+  }
+
+  /* Show print header in ledger */
+  .hidden.print\\:block {
+    display: block !important;
+  }
+
+  /* Hide no-print elements in ledger */
+  .ledger-print-container .no-print {
+    display: none !important;
+  }
 }
 
 /* Custom animations */

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format, parseISO, isWithinInterval } from 'date-fns';
 import { 
   Calendar as CalendarIcon, 
@@ -27,6 +27,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useCloudData, CloudDailyEntry } from '@/contexts/CloudDataContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { recordPaymentReceipt } from '@/services/transactionService';
 import { cn } from '@/lib/utils';
 import { formatAmount } from '@/lib/format';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -116,7 +119,12 @@ function exportToCSV(data: (LedgerTransaction & { balance: number })[], filename
 export default function Ledger() {
   const { dailyEntries: cloudEntries, debtors: cloudDebtors, updateDebtor } = useCloudData();
   const { t } = useLanguage();
+  const { clientId } = useAuth();
   const fyDates = getFYDates();
+  
+  // Ledger transactions from database
+  const [ledgerTransactions, setLedgerTransactions] = useState<any[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   // Convert cloud data to local format
   const entries = useMemo(() => cloudEntries.map(cloudToLocalEntry), [cloudEntries]);
@@ -150,6 +158,44 @@ export default function Ledger() {
   
   // Ledger search state for transaction filtering (must be before any early returns)
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
+
+  // Fetch ledger transactions when account is selected
+  useEffect(() => {
+    const fetchLedgerTransactions = async () => {
+      if (!clientId || !selectedAccountId || selectedGroup !== 'debtors') {
+        setLedgerTransactions([]);
+        return;
+      }
+      
+      setLoadingTransactions(true);
+      try {
+        const { data, error } = await supabase
+          .from('ledger_transactions')
+          .select('*')
+          .eq('client_id', clientId)
+          .eq('account_type', 'debtor')
+          .eq('account_id', selectedAccountId)
+          .gte('transaction_date', dateRange.from.toISOString().split('T')[0])
+          .lte('transaction_date', dateRange.to.toISOString().split('T')[0])
+          .order('transaction_date', { ascending: true });
+        
+        if (error) {
+          console.error('Error fetching ledger transactions:', error);
+          setLedgerTransactions([]);
+        } else {
+          setLedgerTransactions(data || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch ledger transactions:', err);
+        setLedgerTransactions([]);
+      } finally {
+        setLoadingTransactions(false);
+      }
+    };
+    
+    fetchLedgerTransactions();
+  }, [clientId, selectedAccountId, selectedGroup, dateRange]);
+
   // Calculate group summaries
   const groupSummaries = useMemo(() => {
     // Debtors - total outstanding
@@ -265,19 +311,15 @@ export default function Ledger() {
 
     switch (selectedGroup) {
       case 'debtors':
-        // Credit sales for this debtor
-        filteredEntries.forEach((entry) => {
-          entry.creditSales?.forEach((cs) => {
-            if (cs.debtorId === selectedAccountId) {
-              rows.push({
-                id: cs.id,
-                date: entry.date,
-                particulars: `Credit Sale - ${entry.shiftName || 'Daily Entry'}`,
-                remarks: cs.remarks || '',
-                debit: cs.amount,
-                credit: 0,
-              });
-            }
+        // Use ledger_transactions table for debtors
+        ledgerTransactions.forEach((tx) => {
+          rows.push({
+            id: tx.id,
+            date: tx.transaction_date,
+            particulars: tx.description,
+            remarks: tx.remarks || '',
+            debit: tx.transaction_type === 'DEBIT' ? tx.amount : 0,
+            credit: tx.transaction_type === 'CREDIT' ? tx.amount : 0,
           });
         });
         break;
@@ -405,7 +447,7 @@ export default function Ledger() {
     }
 
     return rows;
-  }, [selectedGroup, selectedAccountId, entries, dateRange]);
+  }, [selectedGroup, selectedAccountId, entries, dateRange, ledgerTransactions]);
 
   // Filter ledger data based on search query (searches all columns)
   // Must be defined before early returns
@@ -490,13 +532,13 @@ export default function Ledger() {
   };
 
   // Handle payment receipt
-  const handlePaymentReceipt = (data: {
+  const handlePaymentReceipt = async (data: {
     date: string;
     amount: number;
     paymentMode: string;
     remarks: string;
   }) => {
-    if (!selectedAccountId) return;
+    if (!selectedAccountId || !clientId) return;
 
     const debtor = debtors.find(d => d.id === selectedAccountId);
     if (debtor) {
@@ -504,6 +546,33 @@ export default function Ledger() {
       updateDebtor(selectedAccountId, {
         total_outstanding: Math.max(0, (debtor.totalOutstanding || 0) - data.amount),
       });
+      
+      // Record payment in ledger_transactions table (CREDIT to reduce debt)
+      await recordPaymentReceipt(
+        clientId,
+        selectedAccountId,
+        debtor.name,
+        data.date,
+        data.amount,
+        data.paymentMode,
+        data.remarks
+      );
+      
+      // Refresh ledger transactions
+      const { data: newData } = await supabase
+        .from('ledger_transactions')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('account_type', 'debtor')
+        .eq('account_id', selectedAccountId)
+        .gte('transaction_date', dateRange.from.toISOString().split('T')[0])
+        .lte('transaction_date', dateRange.to.toISOString().split('T')[0])
+        .order('transaction_date', { ascending: true });
+      
+      if (newData) {
+        setLedgerTransactions(newData);
+      }
+      
       toast.success(`Receipt of ₹${formatAmount(data.amount)} recorded for ${debtor.name}`);
     }
   };
@@ -720,9 +789,9 @@ export default function Ledger() {
 
   // Render Individual Ledger View
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+    <div className="space-y-6 animate-fade-in ledger-print-container">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 no-print">
+        <div className="no-print">
           <Button variant="ghost" className="mb-2 -ml-2 gap-2" onClick={goBack}>
             <ArrowLeft className="h-4 w-4" />
             {t('back')} to Master Ledger
@@ -870,11 +939,20 @@ export default function Ledger() {
       </Card>
 
       {/* Ledger Table */}
-      <LedgerTransactionTable
-        transactions={filteredLedgerData}
-        showRemarks={selectedGroup === 'debtors'}
-        openingBalance={openingBalance}
-      />
+      <div className="ledger-print-table">
+        {/* Print Header - only visible in print */}
+        <div className="hidden print:block mb-4">
+          <h2 className="text-xl font-bold text-center">{selectedAccountName}</h2>
+          <p className="text-center text-sm text-muted-foreground">
+            Ledger Statement • {format(dateRange.from, 'dd MMM yyyy')} to {format(dateRange.to, 'dd MMM yyyy')}
+          </p>
+        </div>
+        <LedgerTransactionTable
+          transactions={filteredLedgerData}
+          showRemarks={selectedGroup === 'debtors'}
+          openingBalance={openingBalance}
+        />
+      </div>
 
       {/* Payment Receipt Modal */}
       <PaymentReceiptModal
