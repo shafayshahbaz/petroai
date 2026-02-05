@@ -138,8 +138,10 @@ export default function DailyEntry() {
     const expenses = entry.expenses?.reduce((sum, e) => sum + e.amount, 0) || 0;
     const creditSales = entry.creditSales?.reduce((sum, c) => sum + c.amount, 0) || 0;
     
-    return (entry.openingBalance || 0) + fuelSales + lubeSales + incomes 
+    // Round to 2 decimal places to avoid floating-point precision issues
+    const rawCash = (entry.openingBalance || 0) + fuelSales + lubeSales + incomes 
       - expenses - (entry.cashDeposit || 0) - (entry.upiCollection || 0) - creditSales;
+    return Math.round(rawCash * 100) / 100;
   }, [cloudEntries, isEditMode, editId]);
 
   // Load entry for edit mode OR create new entry
