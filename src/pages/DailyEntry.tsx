@@ -22,7 +22,8 @@ import {
   revertDebtorOutstanding,
   NozzleReading,
   createCreditSaleLedgerEntries,
-  deleteCreditSaleLedgerEntries
+  deleteCreditSaleLedgerEntries,
+  cascadeOpeningBalances
 } from '@/services/transactionService';
 
 const steps = [
@@ -444,6 +445,19 @@ export default function DailyEntry() {
 
       // Trigger data refresh
       await refreshData();
+      
+      // Cascade opening balances for all subsequent entries
+      const { data: allEntries } = await (await import('@/integrations/supabase/client')).supabase
+        .from('daily_entries')
+        .select('*')
+        .eq('client_id', clientId);
+      
+      if (allEntries && allEntries.length > 1) {
+        const cascadeCount = await cascadeOpeningBalances(clientId, allEntries);
+        if (cascadeCount > 0) {
+          await refreshData();
+        }
+      }
       
       // Clear and navigate
       clearCurrentEntry();
