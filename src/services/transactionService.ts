@@ -242,6 +242,111 @@ export async function deleteCreditSaleLedgerEntries(
 }
 
 /**
+ * Cascade opening balances for all entries after a given date.
+ * Recalculates each entry's opening_balance based on the previous entry's cash-in-hand.
+ */
+export async function cascadeOpeningBalances(
+  clientId: string,
+  allEntries: Array<{
+    id: string;
+    date: string;
+    opening_balance: number;
+    fuel_rates: any;
+    nozzles: any;
+    lube_items: any;
+    expenses: any;
+    incomes: any;
+    credit_sales: any;
+    upi_collection: number;
+    cash_deposit: number;
+    testing_deduction: any;
+  }>
+): Promise<number> {
+  if (allEntries.length === 0) return 0;
+
+  // Sort by date ascending
+  const sorted = [...allEntries].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  let updatedCount = 0;
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prevEntry = sorted[i - 1];
+    const currentEntry = sorted[i];
+
+    // Calculate previous entry's cash-in-hand
+    const prevCashInHand = calculateCashInHand(prevEntry);
+
+    // Round to 2 decimals
+    const expectedOpening = Math.round(prevCashInHand * 100) / 100;
+    const currentOpening = Math.round((currentEntry.opening_balance || 0) * 100) / 100;
+
+    if (Math.abs(expectedOpening - currentOpening) > 0.01) {
+      // Update this entry's opening_balance in database
+      await supabase
+        .from('daily_entries')
+        .update({ opening_balance: expectedOpening })
+        .eq('id', currentEntry.id);
+
+      // Update our local copy so subsequent calculations use the new value
+      sorted[i] = { ...sorted[i], opening_balance: expectedOpening };
+      updatedCount++;
+    }
+  }
+
+  return updatedCount;
+}
+
+/**
+ * Calculate cash-in-hand for a cloud entry (same logic as calculateTotals)
+ */
+function calculateCashInHand(entry: {
+  opening_balance: number;
+  fuel_rates: any;
+  nozzles: any;
+  lube_items: any;
+  expenses: any;
+  incomes: any;
+  credit_sales: any;
+  upi_collection: number;
+  cash_deposit: number;
+  testing_deduction: any;
+}): number {
+  const rates = (entry.fuel_rates || { MS: 0, HSD: 0, POWER: 0 }) as Record<string, number>;
+  const testingDeduction = (entry.testing_deduction || { MS: 0, HSD: 0, POWER: 0 }) as Record<string, number>;
+  const nozzles = (entry.nozzles || []) as Array<{ fuelType: string; openingReading: number; closingReading: number }>;
+
+  const fuelSales: Record<string, number> = { MS: 0, HSD: 0, POWER: 0 };
+  nozzles.forEach(n => {
+    const liters = Math.max(0, n.closingReading - n.openingReading);
+    fuelSales[n.fuelType] = (fuelSales[n.fuelType] || 0) + liters;
+  });
+
+  let totalFuelAmount = 0;
+  ['MS', 'HSD', 'POWER'].forEach(ft => {
+    const netLiters = Math.max(0, (fuelSales[ft] || 0) - (testingDeduction[ft] || 0));
+    totalFuelAmount += netLiters * (rates[ft] || 0);
+  });
+
+  const totalLubeAmount = ((entry.lube_items || []) as Array<{ quantity: number; rate: number }>)
+    .reduce((sum, item) => sum + item.quantity * item.rate, 0);
+  const totalIncomes = ((entry.incomes || []) as Array<{ amount: number }>)
+    .reduce((sum, item) => sum + item.amount, 0);
+  const totalCreditSales = ((entry.credit_sales || []) as Array<{ amount: number }>)
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  const grandTotalIncome = totalFuelAmount + totalLubeAmount + totalIncomes + (entry.opening_balance || 0);
+  const totalExpenses = ((entry.expenses || []) as Array<{ amount: number }>)
+    .reduce((sum, item) => sum + item.amount, 0)
+    + (entry.upi_collection || 0)
+    + (entry.cash_deposit || 0)
+    + totalCreditSales;
+
+  return Math.round((grandTotalIncome - totalExpenses) * 100) / 100;
+}
+
+/**
  * Record a payment receipt in the ledger (CREDIT transaction to reduce debt)
  */
 export async function recordPaymentReceipt(
