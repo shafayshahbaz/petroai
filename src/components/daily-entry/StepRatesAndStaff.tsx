@@ -19,7 +19,7 @@ interface StepRatesAndStaffProps {
 }
 
 export function StepRatesAndStaff({ isFirstEntry: isFirstProp }: StepRatesAndStaffProps) {
-  const { currentEntry, createNewEntry, updateFuelRates, updateOpeningBalance } = usePetrolPumpStore();
+  const { currentEntry, updateFuelRates, updateOpeningBalance } = usePetrolPumpStore();
   const { dailyEntries: cloudEntries } = useCloudData();
   
   // Determine if this is the first entry using cloud data (most reliable source)
@@ -31,14 +31,25 @@ export function StepRatesAndStaff({ isFirstEntry: isFirstProp }: StepRatesAndSta
   const rates = currentEntry.fuelRates || { MS: 0, HSD: 0, POWER: 0 };
 
   const handleDateChange = (newDate: Date | undefined) => {
-    if (newDate) {
-      createNewEntry(format(newDate, 'yyyy-MM-dd'), currentEntry.shiftName || '');
+    if (newDate && currentEntry) {
+      // Only update the date — DailyEntry useEffect handles opening balance recalculation
+      usePetrolPumpStore.setState({
+        currentEntry: {
+          ...currentEntry,
+          date: format(newDate, 'yyyy-MM-dd'),
+        },
+      });
     }
   };
 
   const handleShiftNameChange = (value: string) => {
     if (currentEntry) {
-      createNewEntry(currentEntry.date || format(new Date(), 'yyyy-MM-dd'), value);
+      usePetrolPumpStore.setState({
+        currentEntry: {
+          ...currentEntry,
+          shiftName: value,
+        },
+      });
     }
   };
 
