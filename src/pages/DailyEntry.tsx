@@ -86,49 +86,47 @@ export default function DailyEntry() {
   const [isSaving, setIsSaving] = useState(false);
   const originalNozzlesRef = useRef<NozzleReading[] | null>(null);
 
-  // Get last closing readings from cloud entries for carry-forward
+  // Helper: find the most recent entry before a given date
+  const findPreviousEntry = (beforeDate: string) => {
+    if (cloudEntries.length === 0) return null;
+    
+    const sortedEntries = [...cloudEntries]
+      .filter(e => {
+        // Exclude the entry being edited
+        if (isEditMode && e.id === editId) return false;
+        // Only entries strictly before the given date
+        return e.date < beforeDate;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    return sortedEntries[0] || null;
+  };
+
+  // Current date from the entry (needed for reactive recalculation)
+  const currentDate = currentEntry?.date || format(new Date(), 'yyyy-MM-dd');
+
+  // Get last closing readings from cloud entries for carry-forward (relative to selected date)
   const lastClosingReadings = useMemo(() => {
-    if (cloudEntries.length === 0) return {};
-    
-    // Sort by date descending and find the most recent entry
-    const sortedEntries = [...cloudEntries].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    
-    // If editing, exclude the entry being edited and get the previous one
-    const mostRecentEntry = isEditMode 
-      ? sortedEntries.find(e => e.id !== editId) 
-      : sortedEntries[0];
-    
-    if (!mostRecentEntry) return {};
+    const prevEntry = findPreviousEntry(currentDate);
+    if (!prevEntry) return {};
     
     const readings: Record<string, number> = {};
-    (mostRecentEntry.nozzles as any[])?.forEach((n: any) => {
+    (prevEntry.nozzles as any[])?.forEach((n: any) => {
       readings[n.id] = n.closingReading || 0;
     });
     
     return readings;
-  }, [cloudEntries, isEditMode, editId]);
+  }, [cloudEntries, isEditMode, editId, currentDate]);
 
-  // Get last cash in hand from cloud entries using the same calculateTotals logic
+  // Get last cash in hand relative to selected date
   const lastCashInHand = useMemo(() => {
-    if (cloudEntries.length === 0) return 0;
+    const prevEntry = findPreviousEntry(currentDate);
+    if (!prevEntry) return 0;
     
-    const sortedEntries = [...cloudEntries].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    
-    const mostRecentEntry = isEditMode 
-      ? sortedEntries.find(e => e.id !== editId) 
-      : sortedEntries[0];
-    
-    if (!mostRecentEntry) return 0;
-    
-    // Use the same calculateTotals function used everywhere else
-    const entry = cloudToLocalEntry(mostRecentEntry);
+    const entry = cloudToLocalEntry(prevEntry);
     const totals = calculateTotals(entry);
     return totals.cashInHand;
-  }, [cloudEntries, isEditMode, editId]);
+  }, [cloudEntries, isEditMode, editId, currentDate]);
 
   // Load entry for edit mode OR create new entry
   useEffect(() => {
@@ -185,12 +183,26 @@ export default function DailyEntry() {
     });
   };
 
+  // Update opening balance when date changes (recalculates carry-forward)
+  useEffect(() => {
+    if (!isEditMode && currentEntry) {
+      const isFirstEntry = cloudEntries.filter(e => e.date < currentDate).length === 0;
+      if (!isFirstEntry && currentEntry.openingBalance !== lastCashInHand) {
+        usePetrolPumpStore.setState({
+          currentEntry: {
+            ...currentEntry,
+            openingBalance: lastCashInHand,
+          },
+        });
+      }
+    }
+  }, [lastCashInHand, currentDate, isEditMode]);
+
   // Sync nozzles with cloud connected nozzles when they change (only for new entries)
   useEffect(() => {
     if (!isEditMode && currentEntry && connectedNozzles.length > 0) {
       const currentNozzleIds = new Set((currentEntry.nozzles || []).map(n => n.id));
       
-      // Find new connected nozzles not in current entry
       const newNozzles = connectedNozzles
         .filter(cn => !currentNozzleIds.has(cn.id))
         .map((cn, index) => ({
@@ -202,11 +214,9 @@ export default function DailyEntry() {
           closingReading: lastClosingReadings[cn.id] || 0,
         }));
       
-      // Also remove nozzles that are no longer connected
       const connectedNozzleIds = new Set(connectedNozzles.map(cn => cn.id));
       const existingConnectedNozzles = (currentEntry.nozzles || []).filter(n => connectedNozzleIds.has(n.id));
       
-      // Update if there are changes
       if (newNozzles.length > 0 || existingConnectedNozzles.length !== (currentEntry.nozzles || []).length) {
         const updatedNozzles = [...existingConnectedNozzles, ...newNozzles];
         usePetrolPumpStore.setState({
