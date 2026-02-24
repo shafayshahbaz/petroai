@@ -4,7 +4,7 @@ import { format, parseISO } from 'date-fns';
 import { ChevronLeft, ChevronRight, Check, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { usePetrolPumpStore } from '@/store/petrol-pump-store';
+import { usePetrolPumpStore, calculateTotals } from '@/store/petrol-pump-store';
 import { useCloudData, CloudDailyEntry } from '@/contexts/CloudDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -110,7 +110,7 @@ export default function DailyEntry() {
     return readings;
   }, [cloudEntries, isEditMode, editId]);
 
-  // Get last cash in hand from cloud entries
+  // Get last cash in hand from cloud entries using the same calculateTotals logic
   const lastCashInHand = useMemo(() => {
     if (cloudEntries.length === 0) return 0;
     
@@ -124,24 +124,10 @@ export default function DailyEntry() {
     
     if (!mostRecentEntry) return 0;
     
-    // Calculate cash in hand from the last entry
+    // Use the same calculateTotals function used everywhere else
     const entry = cloudToLocalEntry(mostRecentEntry);
-    const fuelSales = entry.nozzles?.reduce((sum, n) => {
-      const testDeduction = entry.testingDeduction?.[n.fuelType] || 0;
-      const liters = Math.max(0, n.closingReading - n.openingReading - testDeduction);
-      const rate = entry.fuelRates?.[n.fuelType] || 0;
-      return sum + (liters * rate);
-    }, 0) || 0;
-    
-    const lubeSales = entry.lubeItems?.reduce((sum, l) => sum + (l.quantity * l.rate), 0) || 0;
-    const incomes = entry.incomes?.reduce((sum, i) => sum + i.amount, 0) || 0;
-    const expenses = entry.expenses?.reduce((sum, e) => sum + e.amount, 0) || 0;
-    const creditSales = entry.creditSales?.reduce((sum, c) => sum + c.amount, 0) || 0;
-    
-    // Round to 2 decimal places to avoid floating-point precision issues
-    const rawCash = (entry.openingBalance || 0) + fuelSales + lubeSales + incomes 
-      - expenses - (entry.cashDeposit || 0) - (entry.upiCollection || 0) - creditSales;
-    return Math.round(rawCash * 100) / 100;
+    const totals = calculateTotals(entry);
+    return totals.cashInHand;
   }, [cloudEntries, isEditMode, editId]);
 
   // Load entry for edit mode OR create new entry
