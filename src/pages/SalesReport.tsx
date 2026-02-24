@@ -44,6 +44,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DailyEntry, FuelType } from '@/types/petrol-pump';
 import { PrintableReport } from '@/components/report/PrintableReport';
 import { deleteDailySale, buildNozzleTankMap, revertDebtorOutstanding } from '@/services/transactionService';
+import { useSettingsStore } from '@/store/settings-store';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -81,6 +82,7 @@ export default function SalesReport() {
   const [selectedEntry, setSelectedEntry] = useState<DailyEntry | null>(null);
   const [printEntry, setPrintEntry] = useState<DailyEntry | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { businessProfile } = useSettingsStore();
   
   const { dailyEntries: cloudEntries, nozzles: cloudNozzles, isOnline, refreshData } = useCloudData();
   const { clientId } = useAuth();
@@ -175,6 +177,13 @@ export default function SalesReport() {
   const executePrint = () => {
     if (!selectedEntry) return;
 
+    // Set document title for PDF filename: "CompanyName DD-MM-YYYY"
+    const originalTitle = document.title;
+    const entryDate = parseISO(selectedEntry.date);
+    const companyName = businessProfile.companyName || 'Report';
+    const formattedDate = format(entryDate, 'dd-MM-yyyy');
+    document.title = `${companyName} ${formattedDate}`;
+
     // Print from the SAME document so the print output uses the exact
     // same Tailwind/CSS as the on-screen preview (no new-window CSS drift).
     setPrintEntry(selectedEntry);
@@ -182,7 +191,11 @@ export default function SalesReport() {
 
     // Allow React to render the print-only content before printing.
     requestAnimationFrame(() => {
-      setTimeout(() => window.print(), 50);
+      setTimeout(() => {
+        window.print();
+        // Restore original title after print dialog closes
+        document.title = originalTitle;
+      }, 50);
     });
   };
 
