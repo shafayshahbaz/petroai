@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Save } from 'lucide-react';
+import { Building2, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,19 +10,58 @@ import { BackupRestoreSection } from '@/components/backup/BackupManager';
 import { PasswordChangeSection } from '@/components/settings/PasswordChangeSection';
 import { DataWipeSection } from '@/components/settings/DataWipeSection';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Settings() {
   const { toast } = useToast();
   const { businessProfile, updateBusinessProfile } = useSettingsStore();
+  const { clientId, refreshClientProfile } = useAuth();
+  const [isSaving, setIsSaving] = useState(false);
   
   const [formData, setFormData] = useState({ ...businessProfile });
 
-  const handleSave = () => {
-    updateBusinessProfile(formData);
-    toast({
-      title: 'Settings Saved',
-      description: 'Your business profile has been updated.',
-    });
+  const handleSave = async () => {
+    if (!clientId) {
+      toast({ title: 'Error', description: 'Client not found', variant: 'destructive' });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Save to database (clients table) so it persists across refreshes
+      const { error } = await supabase
+        .from('clients')
+        .update({
+          pump_name: formData.companyName,
+          address: formData.address || null,
+          gst_number: formData.gstNumber || null,
+          phone: formData.phone || null,
+        })
+        .eq('id', clientId);
+
+      if (error) throw error;
+
+      // Update local store
+      updateBusinessProfile(formData);
+      
+      // Refresh auth context so it picks up the new values
+      await refreshClientProfile();
+
+      toast({
+        title: 'Settings Saved',
+        description: 'Your business profile has been updated.',
+      });
+    } catch (error: any) {
+      console.error('Error saving settings:', error);
+      toast({
+        title: 'Save Failed',
+        description: error.message || 'Failed to save settings',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -101,8 +140,12 @@ export default function Settings() {
             </div>
           </div>
 
-          <Button onClick={handleSave} className="mt-4">
-            <Save className="w-4 h-4 mr-2" />
+          <Button onClick={handleSave} className="mt-4" disabled={isSaving}>
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
             Save Changes
           </Button>
         </CardContent>

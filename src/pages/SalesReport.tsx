@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { 
   Edit, 
   Trash2, 
@@ -8,6 +8,8 @@ import {
   Search, 
   Calendar,
   Loader2,
+  Download,
+  CalendarRange,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +39,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 import { calculateTotals } from '@/store/petrol-pump-store';
 import { useCloudData, CloudDailyEntry } from '@/contexts/CloudDataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -81,8 +91,13 @@ export default function SalesReport() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEntry, setSelectedEntry] = useState<DailyEntry | null>(null);
   const [printEntry, setPrintEntry] = useState<DailyEntry | null>(null);
+  const [printEntries, setPrintEntries] = useState<DailyEntry[]>([]); // Multi-date print
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
   const { businessProfile } = useSettingsStore();
+  const originalTitleRef = useRef(document.title);
   
   const { dailyEntries: cloudEntries, nozzles: cloudNozzles, isOnline, refreshData } = useCloudData();
   const { clientId } = useAuth();
@@ -94,7 +109,11 @@ export default function SalesReport() {
   );
 
   useEffect(() => {
-    const onAfterPrint = () => setPrintEntry(null);
+    const onAfterPrint = () => {
+      setPrintEntry(null);
+      setPrintEntries([]);
+      document.title = originalTitleRef.current;
+    };
     window.addEventListener('afterprint', onAfterPrint);
     return () => window.removeEventListener('afterprint', onAfterPrint);
   }, []);
@@ -113,7 +132,6 @@ export default function SalesReport() {
   }, [entries, searchQuery]);
 
   const handleEdit = (entry: DailyEntry) => {
-    // Navigate to daily entry with edit mode query param
     navigate(`/daily-entry?edit=${entry.id}`);
   };
 
@@ -130,7 +148,6 @@ export default function SalesReport() {
     setDeletingId(id);
     
     try {
-      // Get the entry to revert debtor amounts
       const cloudEntry = cloudEntries.find(e => e.id === id);
       if (cloudEntry?.credit_sales) {
         await revertDebtorOutstanding(
@@ -141,17 +158,13 @@ export default function SalesReport() {
         );
       }
       
-      // Build nozzle-to-tank mapping for stock restoration
       const nozzleTankMap = buildNozzleTankMap(cloudNozzles);
-      
-      // Delete with atomic stock restoration
       const result = await deleteDailySale(clientId, id, nozzleTankMap);
       
       if (!result.success) {
         throw new Error('Failed to delete entry');
       }
       
-      // Trigger data refresh
       await refreshData();
       
       toast({
@@ -177,25 +190,53 @@ export default function SalesReport() {
   const executePrint = () => {
     if (!selectedEntry) return;
 
-    // Set document title for PDF filename: "CompanyName DD-MM-YYYY"
-    const originalTitle = document.title;
+    originalTitleRef.current = document.title;
     const entryDate = parseISO(selectedEntry.date);
     const companyName = businessProfile.companyName || 'Report';
     const formattedDate = format(entryDate, 'dd-MM-yyyy');
     document.title = `${companyName} ${formattedDate}`;
 
-    // Print from the SAME document so the print output uses the exact
-    // same Tailwind/CSS as the on-screen preview (no new-window CSS drift).
     setPrintEntry(selectedEntry);
     setSelectedEntry(null);
 
-    // Allow React to render the print-only content before printing.
     requestAnimationFrame(() => {
-      setTimeout(() => {
-        window.print();
-        // Restore original title after print dialog closes
-        document.title = originalTitle;
-      }, 50);
+      setTimeout(() => window.print(), 100);
+    });
+  };
+
+  // Multi-date download
+  const handleDownloadReport = () => {
+    if (!dateFrom || !dateTo) {
+      toast({ title: 'Select Dates', description: 'Please select both From and To dates.', variant: 'destructive' });
+      return;
+    }
+
+    const fromStart = startOfDay(dateFrom);
+    const toEnd = endOfDay(dateTo);
+
+    const filtered = entries
+      .filter(entry => {
+        const entryDate = parseISO(entry.date);
+        return isWithinInterval(entryDate, { start: fromStart, end: toEnd });
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    if (filtered.length === 0) {
+      toast({ title: 'No Entries', description: 'No entries found in the selected date range.', variant: 'destructive' });
+      return;
+    }
+
+    originalTitleRef.current = document.title;
+    const companyName = businessProfile.companyName || 'Report';
+    const fromStr = format(dateFrom, 'dd-MM-yyyy');
+    const toStr = format(dateTo, 'dd-MM-yyyy');
+    document.title = `${companyName} ${fromStr} to ${toStr}`;
+
+    setPrintEntries(filtered);
+    setShowDownloadDialog(false);
+
+    requestAnimationFrame(() => {
+      setTimeout(() => window.print(), 100);
     });
   };
 
@@ -210,9 +251,15 @@ export default function SalesReport() {
               View and manage all daily entries
             </p>
           </div>
-          <Button onClick={() => navigate('/daily-entry')}>
-            + New Entry
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowDownloadDialog(true)}>
+              <Download className="w-4 h-4 mr-2" />
+              Download Report
+            </Button>
+            <Button onClick={() => navigate('/daily-entry')}>
+              + New Entry
+            </Button>
+          </div>
         </div>
 
         {/* Search */}
@@ -348,7 +395,7 @@ export default function SalesReport() {
           </CardContent>
         </Card>
 
-        {/* Print Preview Dialog */}
+        {/* Single Entry Print Preview Dialog */}
         <Dialog open={!!selectedEntry} onOpenChange={() => setSelectedEntry(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -363,11 +410,91 @@ export default function SalesReport() {
             {selectedEntry && <PrintableReport entry={selectedEntry} />}
           </DialogContent>
         </Dialog>
+
+        {/* Download Report Date Range Dialog */}
+        <Dialog open={showDownloadDialog} onOpenChange={setShowDownloadDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarRange className="w-5 h-5" />
+                Download Report
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <p className="text-sm text-muted-foreground">
+                Select a date range to generate a combined PDF report of all entries.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>From Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !dateFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <Calendar className="w-4 h-4 mr-2" />
+                        {dateFrom ? format(dateFrom, 'dd MMM yyyy') : 'Pick date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={dateFrom}
+                        onSelect={setDateFrom}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label>To Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !dateTo && "text-muted-foreground"
+                        )}
+                      >
+                        <Calendar className="w-4 h-4 mr-2" />
+                        {dateTo ? format(dateTo, 'dd MMM yyyy') : 'Pick date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={dateTo}
+                        onSelect={setDateTo}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              <Button onClick={handleDownloadReport} className="w-full">
+                <Download className="w-4 h-4 mr-2" />
+                Generate & Print Report
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Print-only rendering target (same component, same CSS) */}
       <div className="print-only">
         {printEntry && <PrintableReport entry={printEntry} />}
+        {printEntries.length > 0 && printEntries.map((entry) => (
+          <div key={entry.id} className="print-page-break">
+            <PrintableReport entry={entry} />
+          </div>
+        ))}
       </div>
     </>
   );
