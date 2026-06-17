@@ -9,15 +9,15 @@ interface StepIndicatorProps {
 
 export function StepIndicator({ currentStep, totalSteps, stepLabels }: StepIndicatorProps) {
   return (
-    <div className="w-full mb-8">
+    <div className="w-full mb-4 sm:mb-8">
       <div className="flex items-center justify-between">
         {Array.from({ length: totalSteps }, (_, i) => i + 1).map((step, index) => (
-          <div key={step} className="flex items-center flex-1">
+          <div key={step} className="flex items-center flex-1 min-w-0">
             {/* Step circle */}
             <div className="flex flex-col items-center">
               <div
                 className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all",
+                  "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all shrink-0",
                   step < currentStep
                     ? "bg-primary text-primary-foreground"
                     : step === currentStep
@@ -25,23 +25,23 @@ export function StepIndicator({ currentStep, totalSteps, stepLabels }: StepIndic
                     : "bg-muted text-muted-foreground"
                 )}
               >
-                {step < currentStep ? <Check className="w-5 h-5" /> : step}
+                {step < currentStep ? <Check className="w-4 h-4 sm:w-5 sm:h-5" /> : step}
               </div>
               <span
                 className={cn(
-                  "text-xs mt-2 text-center max-w-[80px]",
+                  "hidden sm:block text-xs mt-2 text-center max-w-[80px]",
                   step === currentStep ? "text-primary font-medium" : "text-muted-foreground"
                 )}
               >
                 {stepLabels[index]}
               </span>
             </div>
-            
+
             {/* Connector line */}
             {index < totalSteps - 1 && (
               <div
                 className={cn(
-                  "flex-1 h-1 mx-2",
+                  "flex-1 h-1 mx-1 sm:mx-2 rounded",
                   step < currentStep ? "bg-primary" : "bg-muted"
                 )}
               />
