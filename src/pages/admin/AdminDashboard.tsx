@@ -312,10 +312,8 @@ export default function AdminDashboard() {
         throw new Error(result.error || 'Failed to reset password');
       }
 
-      await supabase
-        .from('clients')
-        .update({ temp_password_hint: `Reset: ${newClientPassword.slice(-4)}****` })
-        .eq('id', selectedClient.id);
+      // Password reset succeeded — do not persist any password hint to the DB.
+
 
       toast({
         title: 'Password Reset',
