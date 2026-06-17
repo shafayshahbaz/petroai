@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { format } from 'date-fns';
-import { CalendarIcon, Plus, Trash2, Loader2, Check } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { CalendarIcon, Plus, Trash2, Loader2, Check, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,7 @@ import {
   createPersonEntry,
   getDailyRate,
   upsertDailyRate,
+  getLastClosingForNozzle,
   PersonEntryExpense,
 } from '@/services/personEntryService';
 
@@ -60,15 +61,48 @@ export default function PersonEntry() {
   const [staffSaving, setStaffSaving] = useState(false);
 
   const [nozzleManId, setNozzleManId] = useState<string>('');
+  const [productFilter, setProductFilter] = useState<string>('');
   const [nozzleId, setNozzleId] = useState<string>('');
 
   const selectedNozzle = useMemo(
     () => nozzles.find((n) => n.id === nozzleId),
     [nozzleId, nozzles]
   );
-  const product = selectedNozzle?.fuel_type || '';
+  const product = selectedNozzle?.fuel_type || productFilter || '';
+
+  const filteredNozzles = useMemo(
+    () => (productFilter ? nozzles.filter((n) => n.fuel_type === productFilter) : nozzles),
+    [nozzles, productFilter]
+  );
+
+  // Last-reading lookup per nozzle (used to show product+reading in dropdown)
+  const [lastReadings, setLastReadings] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const map: Record<string, number> = {};
+      await Promise.all(
+        filteredNozzles.map(async (n) => {
+          try {
+            const last = await getLastClosingForNozzle(n.id);
+            if (last) map[n.id] = last.closing_reading;
+          } catch {}
+        })
+      );
+      if (alive) setLastReadings(map);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [filteredNozzles]);
 
   const [opening, setOpening] = useState<string>('');
+  const [openingLockInfo, setOpeningLockInfo] = useState<{
+    date: string;
+    nozzle_man_name: string;
+  } | null>(null);
+  const openingLocked = !!openingLockInfo;
   const [closing, setClosing] = useState<string>('');
   const [rate, setRate] = useState<string>('');
 
