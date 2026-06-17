@@ -144,6 +144,7 @@ export default function PersonEntry() {
       { rowId, nozzleId, opening: '', closing: '', rate: '', openingLockInfo: null },
     ]);
     setAddNozzleId('');
+    setAddProduct('');
 
     // Fetch opening + rate in parallel
     try {
@@ -152,15 +153,18 @@ export default function PersonEntry() {
         getLastClosingForNozzle(nozzleId).catch(() => null),
         getDailyRate(ds, nz.fuel_type).catch(() => null),
       ]);
-      let opening = '';
+      let opening = '0';
       let openingLockInfo: NozzleRow['openingLockInfo'] = null;
       if (last) {
+        // Auto-fetched & locked from last closing
         opening = String(last.closing_reading);
         openingLockInfo = { date: last.entry_date, nozzle_man_name: last.nozzle_man_name };
       } else {
+        // No past reading → fall back to Settings opening, else default 0 (editable)
         const seed = Number((nz as any)?.opening_reading || 0);
-        opening = seed > 0 ? String(seed) : '';
+        opening = seed > 0 ? String(seed) : '0';
       }
+
       let rate = daily != null ? String(daily) : '';
       if (!rate && clientId) {
         try {
