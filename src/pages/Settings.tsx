@@ -11,6 +11,7 @@ import { PasswordChangeSection } from '@/components/settings/PasswordChangeSecti
 import { DataWipeSection } from '@/components/settings/DataWipeSection';
 import { StaffSection } from '@/components/settings/StaffSection';
 import { OpeningBalancesSection } from '@/components/settings/OpeningBalancesSection';
+import { DataRetentionSection } from '@/components/settings/DataRetentionSection';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
