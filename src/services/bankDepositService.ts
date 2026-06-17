@@ -1,5 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
+export type BankTxnType = 'deposit' | 'cash_transfer';
+
 export interface BankDepositRecord {
   id: string;
   client_id: string;
@@ -8,6 +10,7 @@ export interface BankDepositRecord {
   bank_name: string | null;
   reference_number: string | null;
   notes: string | null;
+  transaction_type: BankTxnType;
   created_at: string;
   updated_at: string;
 }
@@ -18,12 +21,13 @@ export interface BankDepositInput {
   bank_name?: string | null;
   reference_number?: string | null;
   notes?: string | null;
+  transaction_type?: BankTxnType;
 }
 
 export async function createBankDeposit(input: BankDepositInput, clientId: string) {
   const { data, error } = await supabase
     .from('bank_deposits' as any)
-    .insert({ ...input, client_id: clientId })
+    .insert({ transaction_type: 'deposit', ...input, client_id: clientId })
     .select()
     .single();
   if (error) throw error;
