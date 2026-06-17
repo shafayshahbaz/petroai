@@ -13,6 +13,7 @@ const translations: Translations = {
   // Sidebar Navigation
   dashboard: { en: 'Dashboard', hi: 'डैशबोर्ड' },
   dailyEntry: { en: 'Daily Entry', hi: 'दैनिक प्रविष्टि' },
+  personEntry: { en: 'Person Entry', hi: 'व्यक्तिगत प्रविष्टि' },
   purchase: { en: 'Purchase', hi: 'खरीद' },
   stock: { en: 'Stock', hi: 'स्टॉक' },
   salesReport: { en: 'Sales Report', hi: 'बिक्री रिपोर्ट' },

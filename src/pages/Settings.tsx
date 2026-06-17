@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/store/settings-store';
 import { BackupRestoreSection } from '@/components/backup/BackupManager';
 import { PasswordChangeSection } from '@/components/settings/PasswordChangeSection';
 import { DataWipeSection } from '@/components/settings/DataWipeSection';
+import { StaffSection } from '@/components/settings/StaffSection';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -150,6 +151,11 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+
+      <Separator />
+
+      {/* Staff / Nozzle Men */}
+      <StaffSection />
 
       <Separator />
 
