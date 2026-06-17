@@ -156,6 +156,60 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_dip_readings: {
+        Row: {
+          client_id: string
+          created_at: string
+          date: string
+          dip_liters: number | null
+          dip_reading: number
+          id: string
+          system_liters: number | null
+          tank_id: string
+          updated_at: string
+          variance: number | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          date: string
+          dip_liters?: number | null
+          dip_reading: number
+          id?: string
+          system_liters?: number | null
+          tank_id: string
+          updated_at?: string
+          variance?: number | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          date?: string
+          dip_liters?: number | null
+          dip_reading?: number
+          id?: string
+          system_liters?: number | null
+          tank_id?: string
+          updated_at?: string
+          variance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_dip_readings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_dip_readings_tank_id_fkey"
+            columns: ["tank_id"]
+            isOneToOne: false
+            referencedRelation: "tanks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_entries: {
         Row: {
           cash_deposit: number
@@ -294,6 +348,51 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dip_charts: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          liters: number
+          point: number
+          tank_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          liters: number
+          point: number
+          tank_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          liters?: number
+          point?: number
+          tank_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dip_charts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dip_charts_tank_id_fkey"
+            columns: ["tank_id"]
+            isOneToOne: false
+            referencedRelation: "tanks"
             referencedColumns: ["id"]
           },
         ]
