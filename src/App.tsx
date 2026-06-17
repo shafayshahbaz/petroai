@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import DailyEntry from "./pages/DailyEntry";
 import PersonEntry from "./pages/PersonEntry";
 import SalesReport from "./pages/SalesReport";
+import DailySalesReport from "./pages/DailySalesReport";
 import Ledger from "./pages/Ledger";
 import Debtors from "./pages/Debtors";
 import Purchase from "./pages/Purchase";
@@ -100,6 +101,18 @@ const App = () => (
                     <SubscriptionBanner />
                     <MainLayout>
                       <SalesReport />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/daily-sales-report"
+                element={
+                  <ProtectedRoute>
+                    <OfflineBanner />
+                    <SubscriptionBanner />
+                    <MainLayout>
+                      <DailySalesReport />
                     </MainLayout>
                   </ProtectedRoute>
                 }

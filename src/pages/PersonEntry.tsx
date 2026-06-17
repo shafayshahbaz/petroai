@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { format } from 'date-fns';
-import { CalendarIcon, Plus, Trash2, Loader2, Check } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { CalendarIcon, Plus, Trash2, Loader2, Check, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,7 @@ import {
   createPersonEntry,
   getDailyRate,
   upsertDailyRate,
+  getLastClosingForNozzle,
   PersonEntryExpense,
 } from '@/services/personEntryService';
 
@@ -60,15 +61,48 @@ export default function PersonEntry() {
   const [staffSaving, setStaffSaving] = useState(false);
 
   const [nozzleManId, setNozzleManId] = useState<string>('');
+  const [productFilter, setProductFilter] = useState<string>('');
   const [nozzleId, setNozzleId] = useState<string>('');
 
   const selectedNozzle = useMemo(
     () => nozzles.find((n) => n.id === nozzleId),
     [nozzleId, nozzles]
   );
-  const product = selectedNozzle?.fuel_type || '';
+  const product = selectedNozzle?.fuel_type || productFilter || '';
+
+  const filteredNozzles = useMemo(
+    () => (productFilter ? nozzles.filter((n) => n.fuel_type === productFilter) : nozzles),
+    [nozzles, productFilter]
+  );
+
+  // Last-reading lookup per nozzle (used to show product+reading in dropdown)
+  const [lastReadings, setLastReadings] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const map: Record<string, number> = {};
+      await Promise.all(
+        filteredNozzles.map(async (n) => {
+          try {
+            const last = await getLastClosingForNozzle(n.id);
+            if (last) map[n.id] = last.closing_reading;
+          } catch {}
+        })
+      );
+      if (alive) setLastReadings(map);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [filteredNozzles]);
 
   const [opening, setOpening] = useState<string>('');
+  const [openingLockInfo, setOpeningLockInfo] = useState<{
+    date: string;
+    nozzle_man_name: string;
+  } | null>(null);
+  const openingLocked = !!openingLockInfo;
   const [closing, setClosing] = useState<string>('');
   const [rate, setRate] = useState<string>('');
 
@@ -103,6 +137,41 @@ export default function PersonEntry() {
       })
       .catch(() => {});
   }, [product, date]);
+
+  // Rule 1: when a nozzle is selected, lock the opening reading to the
+  // most recent closing reading recorded for that nozzle (all time).
+  useEffect(() => {
+    if (!nozzleId) {
+      setOpening('');
+      setOpeningLockInfo(null);
+      return;
+    }
+    let alive = true;
+    getLastClosingForNozzle(nozzleId)
+      .then((last) => {
+        if (!alive) return;
+        if (last) {
+          setOpening(String(last.closing_reading));
+          setOpeningLockInfo({
+            date: last.entry_date,
+            nozzle_man_name: last.nozzle_man_name,
+          });
+        } else {
+          // No history yet — first ever entry for this nozzle, user enters opening
+          setOpening('');
+          setOpeningLockInfo(null);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [nozzleId]);
+
+  // Reset nozzle when product filter changes
+  useEffect(() => {
+    setNozzleId('');
+  }, [productFilter]);
 
   const num = (s: string) => {
     const v = parseFloat(s);
@@ -155,8 +224,10 @@ export default function PersonEntry() {
 
   const reset = () => {
     setNozzleManId('');
+    setProductFilter('');
     setNozzleId('');
     setOpening('');
+    setOpeningLockInfo(null);
     setClosing('');
     setRate('');
     setExpenses([]);
@@ -266,7 +337,7 @@ export default function PersonEntry() {
           <CardTitle className="text-base">Shift Info</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Date</Label>
               <Popover>
@@ -312,23 +383,44 @@ export default function PersonEntry() {
             </div>
 
             <div className="space-y-2">
-              <Label>Nozzle</Label>
-              <Select value={nozzleId} onValueChange={setNozzleId}>
-                <SelectTrigger><SelectValue placeholder="Select nozzle" /></SelectTrigger>
+              <Label>Product</Label>
+              <Select value={productFilter} onValueChange={setProductFilter}>
+                <SelectTrigger><SelectValue placeholder="Select product first" /></SelectTrigger>
                 <SelectContent>
-                  {nozzles.map((n) => (
-                    <SelectItem key={n.id} value={n.id}>
-                      {n.label} — {PRODUCT_LABEL[n.fuel_type] || n.fuel_type}
-                    </SelectItem>
-                  ))}
-                  {nozzles.length === 0 && (
-                    <div className="p-2 text-sm text-muted-foreground">No nozzles configured</div>
+                  <SelectItem value="MS">Petrol (MS)</SelectItem>
+                  <SelectItem value="HSD">Diesel (HSD)</SelectItem>
+                  <SelectItem value="POWER">Power</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Nozzle</Label>
+              <Select
+                value={nozzleId}
+                onValueChange={setNozzleId}
+                disabled={!productFilter}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={productFilter ? 'Select nozzle' : 'Pick product first'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredNozzles.map((n) => {
+                    const last = lastReadings[n.id];
+                    return (
+                      <SelectItem key={n.id} value={n.id}>
+                        {n.label} — {PRODUCT_LABEL[n.fuel_type] || n.fuel_type}
+                        {last !== undefined && ` · last: ${last}`}
+                      </SelectItem>
+                    );
+                  })}
+                  {filteredNozzles.length === 0 && (
+                    <div className="p-2 text-sm text-muted-foreground">
+                      {productFilter ? 'No nozzles for this product' : 'Select a product first'}
+                    </div>
                   )}
                 </SelectContent>
               </Select>
-              {product && (
-                <p className="text-xs text-muted-foreground">Product: {PRODUCT_LABEL[product] || product}</p>
-              )}
             </div>
           </div>
         </CardContent>
@@ -341,8 +433,25 @@ export default function PersonEntry() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Opening Reading</Label>
-              <Input type="number" inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} className="text-base" />
+              <Label className="flex items-center gap-1">
+                Opening Reading
+                {openingLocked && <Lock className="w-3 h-3 text-muted-foreground" />}
+              </Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={opening}
+                onChange={(e) => !openingLocked && setOpening(e.target.value)}
+                readOnly={openingLocked}
+                className={cn('text-base', openingLocked && 'bg-muted cursor-not-allowed')}
+              />
+              {openingLocked && openingLockInfo && (
+                <p className="text-xs text-muted-foreground">
+                  Locked: fetched from last closing entry on{' '}
+                  {format(parseISO(openingLockInfo.date), 'dd MMM yyyy')} by{' '}
+                  {openingLockInfo.nozzle_man_name}.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Closing Reading</Label>
