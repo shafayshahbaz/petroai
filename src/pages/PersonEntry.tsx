@@ -75,15 +75,20 @@ export default function PersonEntry() {
 
   const [nozzleManId, setNozzleManId] = useState<string>('');
   const [rows, setRows] = useState<NozzleRow[]>([]);
+  const [addProduct, setAddProduct] = useState<string>('');
   const [addNozzleId, setAddNozzleId] = useState<string>('');
 
   const [lastReadings, setLastReadings] = useState<Record<string, number>>({});
 
   const usedNozzleIds = useMemo(() => new Set(rows.map((r) => r.nozzleId)), [rows]);
   const availableNozzles = useMemo(
-    () => nozzles.filter((n) => !usedNozzleIds.has(n.id)),
-    [nozzles, usedNozzleIds]
+    () =>
+      nozzles.filter(
+        (n) => !usedNozzleIds.has(n.id) && (!addProduct || n.fuel_type === addProduct)
+      ),
+    [nozzles, usedNozzleIds, addProduct]
   );
+
 
   useEffect(() => {
     let alive = true;
@@ -139,6 +144,7 @@ export default function PersonEntry() {
       { rowId, nozzleId, opening: '', closing: '', rate: '', openingLockInfo: null },
     ]);
     setAddNozzleId('');
+    setAddProduct('');
 
     // Fetch opening + rate in parallel
     try {
@@ -147,15 +153,18 @@ export default function PersonEntry() {
         getLastClosingForNozzle(nozzleId).catch(() => null),
         getDailyRate(ds, nz.fuel_type).catch(() => null),
       ]);
-      let opening = '';
+      let opening = '0';
       let openingLockInfo: NozzleRow['openingLockInfo'] = null;
       if (last) {
+        // Auto-fetched & locked from last closing
         opening = String(last.closing_reading);
         openingLockInfo = { date: last.entry_date, nozzle_man_name: last.nozzle_man_name };
       } else {
+        // No past reading → fall back to Settings opening, else default 0 (editable)
         const seed = Number((nz as any)?.opening_reading || 0);
-        opening = seed > 0 ? String(seed) : '';
+        opening = seed > 0 ? String(seed) : '0';
       }
+
       let rate = daily != null ? String(daily) : '';
       if (!rate && clientId) {
         try {
@@ -233,6 +242,8 @@ export default function PersonEntry() {
     setNozzleManId('');
     setRows([]);
     setAddNozzleId('');
+    setAddProduct('');
+
     setExpenses([]);
     setIncomes([]);
     setD500(''); setD200(''); setD100(''); setD50(''); setD20(''); setD10(''); setCoins('');
@@ -453,15 +464,38 @@ export default function PersonEntry() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Add nozzle picker */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Select value={addNozzleId} onValueChange={setAddNozzleId}>
-              <SelectTrigger className="flex-1">
+          {/* Add nozzle picker: product first, then nozzle */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+            <Select
+              value={addProduct}
+              onValueChange={(v) => {
+                setAddProduct(v);
+                setAddNozzleId('');
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="1. Select product" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MS">Petrol (MS)</SelectItem>
+                <SelectItem value="HSD">Diesel (HSD)</SelectItem>
+                <SelectItem value="POWER">Power</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={addNozzleId}
+              onValueChange={setAddNozzleId}
+              disabled={!addProduct}
+            >
+              <SelectTrigger>
                 <SelectValue
                   placeholder={
-                    availableNozzles.length > 0
-                      ? 'Pick a nozzle to add'
-                      : 'All nozzles added'
+                    !addProduct
+                      ? '2. Pick product first'
+                      : availableNozzles.length > 0
+                      ? '2. Select nozzle'
+                      : 'No nozzles for this product'
                   }
                 />
               </SelectTrigger>
@@ -470,17 +504,19 @@ export default function PersonEntry() {
                   const last = lastReadings[n.id];
                   return (
                     <SelectItem key={n.id} value={n.id}>
-                      {n.label} — {PRODUCT_LABEL[n.fuel_type] || n.fuel_type}
+                      {n.label}
                       {last !== undefined && ` · last: ${last}`}
                     </SelectItem>
                   );
                 })}
               </SelectContent>
             </Select>
+
             <Button onClick={() => addRow(addNozzleId)} disabled={!addNozzleId}>
-              <Plus className="w-4 h-4 mr-1" /> Add Nozzle
+              <Plus className="w-4 h-4 mr-1" /> Add
             </Button>
           </div>
+
 
           {rows.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">

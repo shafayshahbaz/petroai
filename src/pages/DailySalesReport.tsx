@@ -8,6 +8,9 @@ import {
   AlertTriangle,
   Check,
   FileText,
+  Eye,
+  Download,
+  Printer,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,6 +33,12 @@ import {
   PersonEntryRecord,
 } from '@/services/personEntryService';
 import { listBankDepositsForDate } from '@/services/bankDepositService';
+import {
+  SalesReportPrintable,
+  buildPrintableHtml,
+  SalesReportData,
+} from '@/components/report/SalesReportPrintable';
+
 
 const PRODUCT_LABEL: Record<string, string> = {
   MS: 'Petrol (MS)',
@@ -49,7 +58,9 @@ export default function DailySalesReport() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showIncluded, setShowIncluded] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
 
   const refresh = async () => {
     setLoading(true);
@@ -151,6 +162,44 @@ export default function DailySalesReport() {
   }, [reportDate]);
 
   const netCashInHand = totals.collected - bankToday;
+
+  const reportData: SalesReportData | null = useMemo(() => {
+    if (!reportDate) return null;
+    return {
+      reportDate,
+      entries: selectedEntries,
+      totals,
+      bankDeposited: bankToday,
+      netCashInHand,
+    };
+  }, [reportDate, selectedEntries, totals, bankToday, netCashInHand]);
+
+  const handleDownload = () => {
+    if (!reportData) return;
+    const html = buildPrintableHtml(reportData);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `daily-sales-report-${reportData.reportDate}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handlePrintView = () => {
+    if (!reportData) return;
+    const html = buildPrintableHtml(reportData);
+    const w = window.open('', '_blank');
+    if (!w) {
+      toast({ title: 'Pop-up blocked', description: 'Allow pop-ups to print', variant: 'destructive' });
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+  };
+
 
   const handleConfirm = async (confirm: boolean) => {
     if (!clientId) return;
@@ -304,26 +353,52 @@ export default function DailySalesReport() {
       </Card>
 
       {/* Action bar */}
-      {selectedEntries.length > 0 && (
+      {selectedEntries.length > 0 && reportDate && (
         <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-30 bg-background border-t shadow-lg p-3">
           <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm">
               <div className="font-semibold">
                 {selectedEntries.length} selected · Net {formatRupees(totals.net)}
               </div>
-              {reportDate && (
-                <div className="text-xs text-muted-foreground">
-                  Report Date: {format(parseISO(reportDate), 'dd MMM yyyy')} (latest entry date)
-                </div>
-              )}
+              <div className="text-xs text-muted-foreground">
+                Report Date: {format(parseISO(reportDate), 'dd MMM yyyy')} (latest entry date)
+              </div>
             </div>
-            <Button onClick={() => setConfirmOpen(true)} className="min-h-[44px]">
-              <FileText className="w-4 h-4 mr-2" />
-              Create Sales Report
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => setViewOpen(true)} className="min-h-[44px]">
+                <Eye className="w-4 h-4 mr-1" /> View
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownload} className="min-h-[44px]">
+                <Download className="w-4 h-4 mr-1" /> Download
+              </Button>
+              <Button onClick={() => setConfirmOpen(true)} className="min-h-[44px]">
+                <FileText className="w-4 h-4 mr-2" />
+                Create Report
+              </Button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* View dialog */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-4 pt-4">
+            <DialogTitle>Sales Report Preview</DialogTitle>
+          </DialogHeader>
+          {reportData && <SalesReportPrintable data={reportData} />}
+          <DialogFooter className="px-4 pb-4 gap-2">
+            <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={handleDownload}>
+              <Download className="w-4 h-4 mr-1" /> Download
+            </Button>
+            <Button onClick={handlePrintView}>
+              <Printer className="w-4 h-4 mr-1" /> Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Confirm dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
