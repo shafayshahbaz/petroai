@@ -206,6 +206,44 @@ export type Database = {
           },
         ]
       }
+      fuel_rates_daily: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          product: string
+          rate: number
+          rate_date: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          product: string
+          rate?: number
+          rate_date: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          product?: string
+          rate?: number
+          rate_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fuel_rates_daily_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ledger_transactions: {
         Row: {
           account_id: string
@@ -262,6 +300,41 @@ export type Database = {
           },
         ]
       }
+      nozzle_men: {
+        Row: {
+          active: boolean
+          client_id: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          client_id: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          client_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nozzle_men_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nozzles: {
         Row: {
           client_id: string
@@ -303,6 +376,109 @@ export type Database = {
             columns: ["tank_id"]
             isOneToOne: false
             referencedRelation: "tanks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      person_entries: {
+        Row: {
+          client_id: string
+          closing_reading: number
+          created_at: string
+          denominations: Json
+          deposited: boolean
+          difference: number
+          entry_date: string
+          expenses: Json
+          gross_amount: number
+          id: string
+          liters_sold: number
+          net_payable: number
+          nozzle_id: string | null
+          nozzle_label: string
+          nozzle_man_id: string | null
+          nozzle_man_name: string
+          opening_reading: number
+          product: string
+          rate: number
+          total_cash: number
+          total_collected: number
+          total_expenses: number
+          updated_at: string
+          upi_received: number
+        }
+        Insert: {
+          client_id: string
+          closing_reading?: number
+          created_at?: string
+          denominations?: Json
+          deposited?: boolean
+          difference?: number
+          entry_date: string
+          expenses?: Json
+          gross_amount?: number
+          id?: string
+          liters_sold?: number
+          net_payable?: number
+          nozzle_id?: string | null
+          nozzle_label: string
+          nozzle_man_id?: string | null
+          nozzle_man_name: string
+          opening_reading?: number
+          product: string
+          rate?: number
+          total_cash?: number
+          total_collected?: number
+          total_expenses?: number
+          updated_at?: string
+          upi_received?: number
+        }
+        Update: {
+          client_id?: string
+          closing_reading?: number
+          created_at?: string
+          denominations?: Json
+          deposited?: boolean
+          difference?: number
+          entry_date?: string
+          expenses?: Json
+          gross_amount?: number
+          id?: string
+          liters_sold?: number
+          net_payable?: number
+          nozzle_id?: string | null
+          nozzle_label?: string
+          nozzle_man_id?: string | null
+          nozzle_man_name?: string
+          opening_reading?: number
+          product?: string
+          rate?: number
+          total_cash?: number
+          total_collected?: number
+          total_expenses?: number
+          updated_at?: string
+          upi_received?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_entries_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_entries_nozzle_id_fkey"
+            columns: ["nozzle_id"]
+            isOneToOne: false
+            referencedRelation: "nozzles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_entries_nozzle_man_id_fkey"
+            columns: ["nozzle_man_id"]
+            isOneToOne: false
+            referencedRelation: "nozzle_men"
             referencedColumns: ["id"]
           },
         ]
