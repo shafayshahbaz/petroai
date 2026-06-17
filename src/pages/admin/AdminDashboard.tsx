@@ -30,7 +30,6 @@ interface Client {
   phone: string | null;
   subscription_status: 'active' | 'expired' | 'suspended';
   subscription_expiry_date: string;
-  temp_password_hint: string | null;
   is_first_login: boolean;
   created_at: string;
   profiles?: {
