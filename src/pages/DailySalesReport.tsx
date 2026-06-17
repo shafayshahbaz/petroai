@@ -380,6 +380,25 @@ export default function DailySalesReport() {
         </div>
       )}
 
+      {/* View dialog */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-4 pt-4">
+            <DialogTitle>Sales Report Preview</DialogTitle>
+          </DialogHeader>
+          {reportData && <SalesReportPrintable data={reportData} />}
+          <DialogFooter className="px-4 pb-4 gap-2">
+            <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={handleDownload}>
+              <Download className="w-4 h-4 mr-1" /> Download
+            </Button>
+            <Button onClick={handlePrintView}>
+              <Printer className="w-4 h-4 mr-1" /> Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Confirm dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
