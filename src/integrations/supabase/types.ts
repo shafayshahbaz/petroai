@@ -24,6 +24,7 @@ export type Database = {
           id: string
           notes: string | null
           reference_number: string | null
+          transaction_type: string
           updated_at: string
         }
         Insert: {
@@ -35,6 +36,7 @@ export type Database = {
           id?: string
           notes?: string | null
           reference_number?: string | null
+          transaction_type?: string
           updated_at?: string
         }
         Update: {
@@ -46,6 +48,7 @@ export type Database = {
           id?: string
           notes?: string | null
           reference_number?: string | null
+          transaction_type?: string
           updated_at?: string
         }
         Relationships: [
@@ -62,6 +65,7 @@ export type Database = {
         Row: {
           client_id: string
           created_at: string
+          default_rates: Json
           id: string
           last_backup_date: string | null
           last_chamber_capacity: number
@@ -71,6 +75,7 @@ export type Database = {
         Insert: {
           client_id: string
           created_at?: string
+          default_rates?: Json
           id?: string
           last_backup_date?: string | null
           last_chamber_capacity?: number
@@ -80,6 +85,7 @@ export type Database = {
         Update: {
           client_id?: string
           created_at?: string
+          default_rates?: Json
           id?: string
           last_backup_date?: string | null
           last_chamber_capacity?: number
@@ -103,6 +109,8 @@ export type Database = {
           gst_number: string | null
           id: string
           is_first_login: boolean
+          opening_cash_in_hand: number
+          opening_cash_set_at: string | null
           owner_name: string
           phone: string | null
           pump_name: string
@@ -118,6 +126,8 @@ export type Database = {
           gst_number?: string | null
           id?: string
           is_first_login?: boolean
+          opening_cash_in_hand?: number
+          opening_cash_set_at?: string | null
           owner_name: string
           phone?: string | null
           pump_name: string
@@ -133,6 +143,8 @@ export type Database = {
           gst_number?: string | null
           id?: string
           is_first_login?: boolean
+          opening_cash_in_hand?: number
+          opening_cash_set_at?: string | null
           owner_name?: string
           phone?: string | null
           pump_name?: string
@@ -422,6 +434,7 @@ export type Database = {
           fuel_type: string
           id: string
           label: string
+          opening_reading: number
           tank_id: string | null
           updated_at: string
         }
@@ -431,6 +444,7 @@ export type Database = {
           fuel_type: string
           id?: string
           label: string
+          opening_reading?: number
           tank_id?: string | null
           updated_at?: string
         }
@@ -440,6 +454,7 @@ export type Database = {
           fuel_type?: string
           id?: string
           label?: string
+          opening_reading?: number
           tank_id?: string | null
           updated_at?: string
         }
