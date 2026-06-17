@@ -37,9 +37,11 @@ import {
   upsertDailyRate,
   getLastClosingForNozzle,
   PersonEntryExpense,
+  PersonEntryIncome,
 } from '@/services/personEntryService';
 
 const EXPENSE_TYPES = ['Pump Expense', 'Partner Withdrawal', 'Debtor Oil Given', 'Other'] as const;
+const INCOME_TYPES = ['Lube Sale', 'POS Commission', 'Other'] as const;
 
 const PRODUCT_LABEL: Record<string, string> = {
   MS: 'Petrol (MS)',
@@ -107,6 +109,7 @@ export default function PersonEntry() {
   const [rate, setRate] = useState<string>('');
 
   const [expenses, setExpenses] = useState<PersonEntryExpense[]>([]);
+  const [incomes, setIncomes] = useState<PersonEntryIncome[]>([]);
 
   const [d500, setD500] = useState<string>('');
   const [d200, setD200] = useState<string>('');
@@ -181,7 +184,8 @@ export default function PersonEntry() {
   const liters = Math.max(0, num(closing) - num(opening));
   const grossAmount = liters * num(rate);
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const netPayable = grossAmount - totalExpenses;
+  const totalIncome = incomes.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const netPayable = grossAmount + totalIncome - totalExpenses;
   const totalCash =
     num(d500) * 500 +
     num(d200) * 200 +
@@ -204,6 +208,18 @@ export default function PersonEntry() {
 
   const removeExpense = (id: string) =>
     setExpenses((rows) => rows.filter((r) => r.id !== id));
+
+  const addIncomeRow = () =>
+    setIncomes((rows) => [
+      ...rows,
+      { id: newId(), type: 'Lube Sale', description: '', amount: 0 },
+    ]);
+
+  const updateIncome = (id: string, patch: Partial<PersonEntryIncome>) =>
+    setIncomes((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  const removeIncome = (id: string) =>
+    setIncomes((rows) => rows.filter((r) => r.id !== id));
 
   const handleAddStaff = async () => {
     if (!clientId || !newStaffName.trim()) return;
@@ -231,6 +247,7 @@ export default function PersonEntry() {
     setClosing('');
     setRate('');
     setExpenses([]);
+    setIncomes([]);
     setD500(''); setD200(''); setD100(''); setD50(''); setD20(''); setD10(''); setCoins('');
     setUpi('');
   };
@@ -271,6 +288,8 @@ export default function PersonEntry() {
         gross_amount: grossAmount,
         expenses,
         total_expenses: totalExpenses,
+        incomes,
+        total_income: totalIncome,
         net_payable: netPayable,
         denominations: {
           d500: num(d500), d200: num(d200), d100: num(d100),
