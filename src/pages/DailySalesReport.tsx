@@ -8,6 +8,9 @@ import {
   AlertTriangle,
   Check,
   FileText,
+  Eye,
+  Download,
+  Printer,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,6 +33,12 @@ import {
   PersonEntryRecord,
 } from '@/services/personEntryService';
 import { listBankDepositsForDate } from '@/services/bankDepositService';
+import {
+  SalesReportPrintable,
+  buildPrintableHtml,
+  SalesReportData,
+} from '@/components/report/SalesReportPrintable';
+
 
 const PRODUCT_LABEL: Record<string, string> = {
   MS: 'Petrol (MS)',
