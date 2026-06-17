@@ -315,26 +315,33 @@ export default function DailySalesReport() {
       </Card>
 
       {/* Action bar */}
-      {selectedEntries.length > 0 && (
+      {selectedEntries.length > 0 && reportDate && (
         <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-30 bg-background border-t shadow-lg p-3">
           <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm">
               <div className="font-semibold">
                 {selectedEntries.length} selected · Net {formatRupees(totals.net)}
               </div>
-              {reportDate && (
-                <div className="text-xs text-muted-foreground">
-                  Report Date: {format(parseISO(reportDate), 'dd MMM yyyy')} (latest entry date)
-                </div>
-              )}
+              <div className="text-xs text-muted-foreground">
+                Report Date: {format(parseISO(reportDate), 'dd MMM yyyy')} (latest entry date)
+              </div>
             </div>
-            <Button onClick={() => setConfirmOpen(true)} className="min-h-[44px]">
-              <FileText className="w-4 h-4 mr-2" />
-              Create Sales Report
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => setViewOpen(true)} className="min-h-[44px]">
+                <Eye className="w-4 h-4 mr-1" /> View
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownload} className="min-h-[44px]">
+                <Download className="w-4 h-4 mr-1" /> Download
+              </Button>
+              <Button onClick={() => setConfirmOpen(true)} className="min-h-[44px]">
+                <FileText className="w-4 h-4 mr-2" />
+                Create Report
+              </Button>
+            </div>
           </div>
         </div>
       )}
+
 
       {/* Confirm dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
