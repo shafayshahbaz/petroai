@@ -18,6 +18,9 @@ import {
 import { format, subDays, parseISO } from 'date-fns';
 import { useMemo } from 'react';
 import { DEFAULT_FUEL_RATES } from '@/types/petrol-pump';
+import { StockPanel } from '@/components/dashboard/StockPanel';
+import { CashInHandCard } from '@/components/dashboard/CashInHandCard';
+import { DebtorDuesCard } from '@/components/dashboard/DebtorDuesCard';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -292,6 +295,17 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Stock Panel + Cash + Debtors */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <StockPanel />
+        </div>
+        <div className="space-y-6">
+          <CashInHandCard />
+          <DebtorDuesCard />
+        </div>
       </div>
 
       {/* Charts Section */}

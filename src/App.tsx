@@ -13,6 +13,7 @@ import { MainLayout } from "./components/layout/MainLayout";
 import { SessionTimeoutProvider } from "./components/SessionTimeoutProvider";
 import Dashboard from "./pages/Dashboard";
 import DailyEntry from "./pages/DailyEntry";
+import PersonEntry from "./pages/PersonEntry";
 import SalesReport from "./pages/SalesReport";
 import Ledger from "./pages/Ledger";
 import Debtors from "./pages/Debtors";
@@ -75,6 +76,18 @@ const App = () => (
                     <SubscriptionBanner />
                     <MainLayout>
                       <DailyEntry />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/person-entry"
+                element={
+                  <ProtectedRoute>
+                    <OfflineBanner />
+                    <SubscriptionBanner />
+                    <MainLayout>
+                      <PersonEntry />
                     </MainLayout>
                   </ProtectedRoute>
                 }
