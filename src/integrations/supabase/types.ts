@@ -165,6 +165,42 @@ export type Database = {
           },
         ]
       }
+      daily_sales_reports: {
+        Row: {
+          client_id: string
+          confirmed: boolean
+          created_at: string
+          entry_ids: string[]
+          id: string
+          notes: string | null
+          report_date: string
+          totals: Json
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          confirmed?: boolean
+          created_at?: string
+          entry_ids?: string[]
+          id?: string
+          notes?: string | null
+          report_date: string
+          totals?: Json
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          confirmed?: boolean
+          created_at?: string
+          entry_ids?: string[]
+          id?: string
+          notes?: string | null
+          report_date?: string
+          totals?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       debtors: {
         Row: {
           client_id: string
@@ -401,6 +437,8 @@ export type Database = {
           opening_reading: number
           product: string
           rate: number
+          report_id: string | null
+          report_inclusion_status: string
           total_cash: number
           total_collected: number
           total_expenses: number
@@ -427,6 +465,8 @@ export type Database = {
           opening_reading?: number
           product: string
           rate?: number
+          report_id?: string | null
+          report_inclusion_status?: string
           total_cash?: number
           total_collected?: number
           total_expenses?: number
@@ -453,6 +493,8 @@ export type Database = {
           opening_reading?: number
           product?: string
           rate?: number
+          report_id?: string | null
+          report_inclusion_status?: string
           total_cash?: number
           total_collected?: number
           total_expenses?: number
