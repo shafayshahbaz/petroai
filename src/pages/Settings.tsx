@@ -176,6 +176,11 @@ export default function Settings() {
 
       <Separator />
 
+      {/* 15-day data retention with auto roll-forward of cash & meter readings */}
+      <DataRetentionSection />
+
+      <Separator />
+
       {/* Danger Zone - Using new secure component */}
       <DataWipeSection />
     </div>
