@@ -39,6 +39,7 @@ import {
   PersonEntryExpense,
   PersonEntryIncome,
 } from '@/services/personEntryService';
+import { getDefaultRates } from '@/services/openingBalancesService';
 
 const EXPENSE_TYPES = ['Pump Expense', 'Partner Withdrawal', 'Debtor Oil Given', 'Other'] as const;
 const INCOME_TYPES = ['Lube Sale', 'POS Commission', 'Other'] as const;
@@ -130,19 +131,27 @@ export default function PersonEntry() {
     }
   }, [clientId]);
 
-  // Auto-fill rate when product or date changes
+  // Auto-fill rate: daily rate first, then default rate from Settings
   useEffect(() => {
-    if (!product) return;
+    if (!product || !clientId) return;
     const ds = format(date, 'yyyy-MM-dd');
-    getDailyRate(ds, product)
-      .then((r) => {
-        if (r != null) setRate(String(r));
-      })
-      .catch(() => {});
-  }, [product, date]);
+    (async () => {
+      try {
+        const daily = await getDailyRate(ds, product);
+        if (daily != null) {
+          setRate(String(daily));
+          return;
+        }
+        const defaults = await getDefaultRates(clientId);
+        if (defaults[product] != null) setRate(String(defaults[product]));
+      } catch {}
+    })();
+  }, [product, date, clientId]);
 
   // Rule 1: when a nozzle is selected, lock the opening reading to the
   // most recent closing reading recorded for that nozzle (all time).
+  // If no history exists yet, fall back to the per-nozzle Opening Reading
+  // configured in Settings.
   useEffect(() => {
     if (!nozzleId) {
       setOpening('');
@@ -160,8 +169,9 @@ export default function PersonEntry() {
             nozzle_man_name: last.nozzle_man_name,
           });
         } else {
-          // No history yet — first ever entry for this nozzle, user enters opening
-          setOpening('');
+          // First-ever entry for this nozzle — seed from Settings opening
+          const seed = Number((selectedNozzle as any)?.opening_reading || 0);
+          setOpening(seed > 0 ? String(seed) : '');
           setOpeningLockInfo(null);
         }
       })
@@ -169,7 +179,7 @@ export default function PersonEntry() {
     return () => {
       alive = false;
     };
-  }, [nozzleId]);
+  }, [nozzleId, selectedNozzle]);
 
   // Reset nozzle when product filter changes
   useEffect(() => {
