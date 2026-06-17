@@ -119,7 +119,6 @@ export type Database = {
           pump_name: string
           subscription_expiry_date: string
           subscription_status: Database["public"]["Enums"]["subscription_status"]
-          temp_password_hint: string | null
           updated_at: string
           user_id: string
         }
@@ -136,7 +135,6 @@ export type Database = {
           pump_name: string
           subscription_expiry_date?: string
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
-          temp_password_hint?: string | null
           updated_at?: string
           user_id: string
         }
@@ -153,7 +151,6 @@ export type Database = {
           pump_name?: string
           subscription_expiry_date?: string
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
-          temp_password_hint?: string | null
           updated_at?: string
           user_id?: string
         }

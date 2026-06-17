@@ -30,7 +30,6 @@ interface Client {
   phone: string | null;
   subscription_status: 'active' | 'expired' | 'suspended';
   subscription_expiry_date: string;
-  temp_password_hint: string | null;
   is_first_login: boolean;
   created_at: string;
   profiles?: {
@@ -312,10 +311,8 @@ export default function AdminDashboard() {
         throw new Error(result.error || 'Failed to reset password');
       }
 
-      await supabase
-        .from('clients')
-        .update({ temp_password_hint: `Reset: ${newClientPassword.slice(-4)}****` })
-        .eq('id', selectedClient.id);
+      // Password reset succeeded — do not persist any password hint to the DB.
+
 
       toast({
         title: 'Password Reset',
@@ -666,13 +663,8 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* Password Hint */}
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">Password hint: </span>
-                        <code className="bg-muted px-1.5 py-0.5 rounded">
-                          {client.temp_password_hint || 'Not set'}
-                        </code>
-                      </div>
+                      {/* Password hints intentionally not stored or shown */}
+
 
                       {/* Actions */}
                       <div className="flex flex-wrap gap-2 pt-2">
