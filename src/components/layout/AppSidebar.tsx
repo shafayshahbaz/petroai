@@ -28,10 +28,6 @@ const getNavItems = (t: (key: string) => string) => [{
   icon: Database,
   label: t('stock')
 }, {
-  to: '/sales-report',
-  icon: ClipboardList,
-  label: t('salesReport')
-}, {
   to: '/daily-sales-report',
   icon: ClipboardList,
   label: t('dailySalesReport')

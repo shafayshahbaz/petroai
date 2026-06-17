@@ -10,6 +10,7 @@ import { BackupRestoreSection } from '@/components/backup/BackupManager';
 import { PasswordChangeSection } from '@/components/settings/PasswordChangeSection';
 import { DataWipeSection } from '@/components/settings/DataWipeSection';
 import { StaffSection } from '@/components/settings/StaffSection';
+import { OpeningBalancesSection } from '@/components/settings/OpeningBalancesSection';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -151,6 +152,11 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+
+      <Separator />
+
+      {/* Opening Balances (one-time setup: cash, nozzle readings, default rates) */}
+      <OpeningBalancesSection />
 
       <Separator />
 
