@@ -17,6 +17,7 @@ const translations: Translations = {
   purchase: { en: 'Purchase', hi: 'खरीद' },
   stock: { en: 'Stock', hi: 'स्टॉक' },
   salesReport: { en: 'Sales Report', hi: 'बिक्री रिपोर्ट' },
+  dailySalesReport: { en: 'Daily Sales Report', hi: 'दैनिक बिक्री रिपोर्ट' },
   ledger: { en: 'Ledger', hi: 'खाता बही' },
   debtors: { en: 'Debtors', hi: 'देनदार' },
   settings: { en: 'Settings', hi: 'सेटिंग्स' },
