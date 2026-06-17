@@ -462,15 +462,38 @@ export default function PersonEntry() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Add nozzle picker */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Select value={addNozzleId} onValueChange={setAddNozzleId}>
-              <SelectTrigger className="flex-1">
+          {/* Add nozzle picker: product first, then nozzle */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+            <Select
+              value={addProduct}
+              onValueChange={(v) => {
+                setAddProduct(v);
+                setAddNozzleId('');
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="1. Select product" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MS">Petrol (MS)</SelectItem>
+                <SelectItem value="HSD">Diesel (HSD)</SelectItem>
+                <SelectItem value="POWER">Power</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={addNozzleId}
+              onValueChange={setAddNozzleId}
+              disabled={!addProduct}
+            >
+              <SelectTrigger>
                 <SelectValue
                   placeholder={
-                    availableNozzles.length > 0
-                      ? 'Pick a nozzle to add'
-                      : 'All nozzles added'
+                    !addProduct
+                      ? '2. Pick product first'
+                      : availableNozzles.length > 0
+                      ? '2. Select nozzle'
+                      : 'No nozzles for this product'
                   }
                 />
               </SelectTrigger>
@@ -479,17 +502,19 @@ export default function PersonEntry() {
                   const last = lastReadings[n.id];
                   return (
                     <SelectItem key={n.id} value={n.id}>
-                      {n.label} — {PRODUCT_LABEL[n.fuel_type] || n.fuel_type}
+                      {n.label}
                       {last !== undefined && ` · last: ${last}`}
                     </SelectItem>
                   );
                 })}
               </SelectContent>
             </Select>
+
             <Button onClick={() => addRow(addNozzleId)} disabled={!addNozzleId}>
-              <Plus className="w-4 h-4 mr-1" /> Add Nozzle
+              <Plus className="w-4 h-4 mr-1" /> Add
             </Button>
           </div>
+
 
           {rows.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
