@@ -70,6 +70,7 @@ export type Database = {
           last_backup_date: string | null
           last_chamber_capacity: number
           last_prices: Json
+          last_retention_run: string | null
           updated_at: string
         }
         Insert: {
@@ -80,6 +81,7 @@ export type Database = {
           last_backup_date?: string | null
           last_chamber_capacity?: number
           last_prices?: Json
+          last_retention_run?: string | null
           updated_at?: string
         }
         Update: {
@@ -90,6 +92,7 @@ export type Database = {
           last_backup_date?: string | null
           last_chamber_capacity?: number
           last_prices?: Json
+          last_retention_run?: string | null
           updated_at?: string
         }
         Relationships: [
