@@ -16,6 +16,7 @@ import DailyEntry from "./pages/DailyEntry";
 import PersonEntry from "./pages/PersonEntry";
 
 import DailySalesReport from "./pages/DailySalesReport";
+import Dip from "./pages/Dip";
 import Ledger from "./pages/Ledger";
 import Debtors from "./pages/Debtors";
 import Bank from "./pages/Bank";
@@ -127,6 +128,18 @@ const App = () => (
                     <SubscriptionBanner />
                     <MainLayout>
                       <Debtors />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dip"
+                element={
+                  <ProtectedRoute>
+                    <OfflineBanner />
+                    <SubscriptionBanner />
+                    <MainLayout>
+                      <Dip />
                     </MainLayout>
                   </ProtectedRoute>
                 }

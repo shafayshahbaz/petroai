@@ -12,6 +12,7 @@ import { DataWipeSection } from '@/components/settings/DataWipeSection';
 import { StaffSection } from '@/components/settings/StaffSection';
 import { OpeningBalancesSection } from '@/components/settings/OpeningBalancesSection';
 import { DataRetentionSection } from '@/components/settings/DataRetentionSection';
+import { DipChartsSection } from '@/components/settings/DipChartsSection';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -158,6 +159,11 @@ export default function Settings() {
 
       {/* Opening Balances (one-time setup: cash, nozzle readings, default rates) */}
       <OpeningBalancesSection />
+
+      <Separator />
+
+      {/* Dip Charts upload per tank */}
+      <DipChartsSection />
 
       <Separator />
 

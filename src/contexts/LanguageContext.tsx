@@ -21,6 +21,7 @@ const translations: Translations = {
   ledger: { en: 'Ledger', hi: 'खाता बही' },
   debtors: { en: 'Debtors', hi: 'देनदार' },
   bank: { en: 'Bank', hi: 'बैंक' },
+  dip: { en: 'Dip', hi: 'डिप' },
   settings: { en: 'Settings', hi: 'सेटिंग्स' },
   howToUse: { en: 'How to Use', hi: 'कैसे उपयोग करें' },
   
