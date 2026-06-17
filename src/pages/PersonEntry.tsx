@@ -242,6 +242,8 @@ export default function PersonEntry() {
     setNozzleManId('');
     setRows([]);
     setAddNozzleId('');
+    setAddProduct('');
+
     setExpenses([]);
     setIncomes([]);
     setD500(''); setD200(''); setD100(''); setD50(''); setD20(''); setD10(''); setCoins('');
