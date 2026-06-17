@@ -14,7 +14,7 @@ import { SessionTimeoutProvider } from "./components/SessionTimeoutProvider";
 import Dashboard from "./pages/Dashboard";
 import DailyEntry from "./pages/DailyEntry";
 import PersonEntry from "./pages/PersonEntry";
-import SalesReport from "./pages/SalesReport";
+
 import DailySalesReport from "./pages/DailySalesReport";
 import Ledger from "./pages/Ledger";
 import Debtors from "./pages/Debtors";
@@ -94,18 +94,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/sales-report"
-                element={
-                  <ProtectedRoute>
-                    <OfflineBanner />
-                    <SubscriptionBanner />
-                    <MainLayout>
-                      <SalesReport />
-                    </MainLayout>
-                  </ProtectedRoute>
-                }
-              />
+              {/* /sales-report removed — use /daily-sales-report */}
               <Route
                 path="/daily-sales-report"
                 element={
