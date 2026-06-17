@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { DailyEntry, FuelType } from '@/types/petrol-pump';
 import { calculateTotals } from '@/store/petrol-pump-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { getDipReadingsForDate, listTanks, type TankRow, type DipReadingRow } from '@/services/dipService';
 
 interface DailyReportSheetProps {
   entry: DailyEntry;
@@ -23,6 +25,29 @@ function formatCurrency(amount: number): string {
 export function DailyReportSheet({ entry }: DailyReportSheetProps) {
   const { businessProfile } = useSettingsStore();
   const totals = calculateTotals(entry);
+  const [dipReadings, setDipReadings] = useState<DipReadingRow[]>([]);
+  const [dipTanks, setDipTanks] = useState<TankRow[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [reads, tanks] = await Promise.all([
+          getDipReadingsForDate(entry.date),
+          listTanks(),
+        ]);
+        if (!cancelled) {
+          setDipReadings(reads);
+          setDipTanks(tanks);
+        }
+      } catch {
+        // silent — section is optional
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [entry.date]);
 
   const groupedNozzles = {
     MS: entry.nozzles.filter((n) => n.fuelType === 'MS'),
@@ -197,6 +222,39 @@ export function DailyReportSheet({ entry }: DailyReportSheetProps) {
           </div>
         </div>
       </div>
+
+      {/* Closing Dip Readings (only if recorded) */}
+      {dipReadings.length > 0 && (
+        <div className="mt-2 border-t-2 border-black pt-1">
+          <h3 className="font-bold text-center" style={{ fontSize: '10px' }}>CLOSING DIP READINGS</h3>
+          <table className="w-full" style={{ fontSize: '8px' }}>
+            <thead>
+              <tr className="border-b border-black">
+                <th className="text-left p-0.5">Tank</th>
+                <th className="text-right p-0.5">Dip Point</th>
+                <th className="text-right p-0.5">Stock as per Dip (L)</th>
+                <th className="text-right p-0.5">Stock as per System (L)</th>
+                <th className="text-right p-0.5">Variance (L)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dipReadings.map((r) => {
+                const tank = dipTanks.find((t) => t.id === r.tank_id);
+                return (
+                  <tr key={r.id} className="border-b border-gray-300">
+                    <td className="p-0.5">{tank ? tank.name : r.tank_id.slice(0, 6)}</td>
+                    <td className="text-right p-0.5">{r.dip_reading}</td>
+                    <td className="text-right p-0.5">{r.dip_liters != null ? formatNumber(Number(r.dip_liters), 2) : '—'}</td>
+                    <td className="text-right p-0.5">{r.system_liters != null ? formatNumber(Number(r.system_liters), 2) : '—'}</td>
+                    <td className="text-right p-0.5">{r.variance != null ? formatNumber(Number(r.variance), 2) : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
 
       {/* Footer */}
       <div className="mt-2 pt-1 border-t-2 border-black flex justify-between font-bold" style={{ fontSize: '9px' }}>
