@@ -37,9 +37,11 @@ import {
   upsertDailyRate,
   getLastClosingForNozzle,
   PersonEntryExpense,
+  PersonEntryIncome,
 } from '@/services/personEntryService';
 
 const EXPENSE_TYPES = ['Pump Expense', 'Partner Withdrawal', 'Debtor Oil Given', 'Other'] as const;
+const INCOME_TYPES = ['Lube Sale', 'POS Commission', 'Other'] as const;
 
 const PRODUCT_LABEL: Record<string, string> = {
   MS: 'Petrol (MS)',
@@ -107,6 +109,7 @@ export default function PersonEntry() {
   const [rate, setRate] = useState<string>('');
 
   const [expenses, setExpenses] = useState<PersonEntryExpense[]>([]);
+  const [incomes, setIncomes] = useState<PersonEntryIncome[]>([]);
 
   const [d500, setD500] = useState<string>('');
   const [d200, setD200] = useState<string>('');
@@ -181,7 +184,8 @@ export default function PersonEntry() {
   const liters = Math.max(0, num(closing) - num(opening));
   const grossAmount = liters * num(rate);
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const netPayable = grossAmount - totalExpenses;
+  const totalIncome = incomes.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const netPayable = grossAmount + totalIncome - totalExpenses;
   const totalCash =
     num(d500) * 500 +
     num(d200) * 200 +
@@ -204,6 +208,18 @@ export default function PersonEntry() {
 
   const removeExpense = (id: string) =>
     setExpenses((rows) => rows.filter((r) => r.id !== id));
+
+  const addIncomeRow = () =>
+    setIncomes((rows) => [
+      ...rows,
+      { id: newId(), type: 'Lube Sale', description: '', amount: 0 },
+    ]);
+
+  const updateIncome = (id: string, patch: Partial<PersonEntryIncome>) =>
+    setIncomes((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  const removeIncome = (id: string) =>
+    setIncomes((rows) => rows.filter((r) => r.id !== id));
 
   const handleAddStaff = async () => {
     if (!clientId || !newStaffName.trim()) return;
@@ -231,6 +247,7 @@ export default function PersonEntry() {
     setClosing('');
     setRate('');
     setExpenses([]);
+    setIncomes([]);
     setD500(''); setD200(''); setD100(''); setD50(''); setD20(''); setD10(''); setCoins('');
     setUpi('');
   };
@@ -271,6 +288,8 @@ export default function PersonEntry() {
         gross_amount: grossAmount,
         expenses,
         total_expenses: totalExpenses,
+        incomes,
+        total_income: totalIncome,
         net_payable: netPayable,
         denominations: {
           d500: num(d500), d200: num(d200), d100: num(d100),
@@ -542,18 +561,98 @@ export default function PersonEntry() {
             </div>
           ))}
           <div className="flex justify-between border-t pt-3 text-sm">
-            <span className="text-muted-foreground">Total Expenses</span>
+            <span className="text-muted-foreground">Total Deductions</span>
             <span className="font-semibold">{formatRupees(totalExpenses)}</span>
           </div>
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Additional Income</CardTitle>
+            <Button onClick={addIncomeRow} size="sm" variant="outline">
+              <Plus className="w-4 h-4 mr-1" /> Add Income
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {incomes.length === 0 && (
+            <p className="text-sm text-muted-foreground">No additional income added</p>
+          )}
+          {incomes.map((row) => (
+            <div key={row.id} className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-12 md:col-span-3 space-y-1">
+                <Label className="text-xs">Type</Label>
+                <Select
+                  value={row.type}
+                  onValueChange={(v) => updateIncome(row.id, { type: v as any })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INCOME_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-7 md:col-span-5 space-y-1">
+                <Label className="text-xs">Description</Label>
+                <Input
+                  value={row.description}
+                  onChange={(e) => updateIncome(row.id, { description: e.target.value })}
+                  placeholder={
+                    row.type === 'Lube Sale'
+                      ? 'e.g. Engine oil 1L'
+                      : row.type === 'POS Commission'
+                      ? 'e.g. Card swipe commission'
+                      : 'e.g. Misc income'
+                  }
+                  className="text-base"
+                />
+              </div>
+              <div className="col-span-4 md:col-span-3 space-y-1">
+                <Label className="text-xs">Amount</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={row.amount || ''}
+                  onChange={(e) =>
+                    updateIncome(row.id, { amount: parseFloat(e.target.value) || 0 })
+                  }
+                  className="text-base"
+                />
+              </div>
+              <div className="col-span-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeIncome(row.id)}
+                  aria-label="Remove"
+                >
+                  <Trash2 className="w-4 h-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          <div className="flex justify-between border-t pt-3 text-sm">
+            <span className="text-muted-foreground">Total Additional Income</span>
+            <span className="font-semibold text-green-600">{formatRupees(totalIncome)}</span>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="border-2 border-primary/40">
-        <CardContent className="py-4 flex items-center justify-between">
-          <span className="text-base font-medium">Net Amount Payable</span>
-          <span className="text-2xl md:text-3xl font-extrabold text-primary">
-            {formatRupees(netPayable)}
-          </span>
+        <CardContent className="py-4 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-base font-medium">Net Payable</span>
+            <span className="text-2xl md:text-3xl font-extrabold text-primary">
+              {formatRupees(netPayable)}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Gross {formatRupees(grossAmount)} + Income {formatRupees(totalIncome)} − Deductions {formatRupees(totalExpenses)} = {formatRupees(netPayable)}
+          </p>
         </CardContent>
       </Card>
 

@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_deposits: {
+        Row: {
+          amount: number
+          bank_name: string | null
+          client_id: string
+          created_at: string
+          deposit_date: string
+          id: string
+          notes: string | null
+          reference_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          bank_name?: string | null
+          client_id: string
+          created_at?: string
+          deposit_date: string
+          id?: string
+          notes?: string | null
+          reference_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          bank_name?: string | null
+          client_id?: string
+          created_at?: string
+          deposit_date?: string
+          id?: string
+          notes?: string | null
+          reference_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_deposits_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_settings: {
         Row: {
           client_id: string
@@ -428,6 +472,7 @@ export type Database = {
           expenses: Json
           gross_amount: number
           id: string
+          incomes: Json
           liters_sold: number
           net_payable: number
           nozzle_id: string | null
@@ -442,6 +487,7 @@ export type Database = {
           total_cash: number
           total_collected: number
           total_expenses: number
+          total_income: number
           updated_at: string
           upi_received: number
         }
@@ -456,6 +502,7 @@ export type Database = {
           expenses?: Json
           gross_amount?: number
           id?: string
+          incomes?: Json
           liters_sold?: number
           net_payable?: number
           nozzle_id?: string | null
@@ -470,6 +517,7 @@ export type Database = {
           total_cash?: number
           total_collected?: number
           total_expenses?: number
+          total_income?: number
           updated_at?: string
           upi_received?: number
         }
@@ -484,6 +532,7 @@ export type Database = {
           expenses?: Json
           gross_amount?: number
           id?: string
+          incomes?: Json
           liters_sold?: number
           net_payable?: number
           nozzle_id?: string | null
@@ -498,6 +547,7 @@ export type Database = {
           total_cash?: number
           total_collected?: number
           total_expenses?: number
+          total_income?: number
           updated_at?: string
           upi_received?: number
         }

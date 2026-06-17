@@ -18,6 +18,7 @@ import SalesReport from "./pages/SalesReport";
 import DailySalesReport from "./pages/DailySalesReport";
 import Ledger from "./pages/Ledger";
 import Debtors from "./pages/Debtors";
+import Bank from "./pages/Bank";
 import Purchase from "./pages/Purchase";
 import NewPurchase from "./pages/NewPurchase";
 import Stock from "./pages/Stock";
@@ -137,6 +138,18 @@ const App = () => (
                     <SubscriptionBanner />
                     <MainLayout>
                       <Debtors />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/bank"
+                element={
+                  <ProtectedRoute>
+                    <OfflineBanner />
+                    <SubscriptionBanner />
+                    <MainLayout>
+                      <Bank />
                     </MainLayout>
                   </ProtectedRoute>
                 }

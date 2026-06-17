@@ -7,6 +7,13 @@ export interface PersonEntryExpense {
   amount: number;
 }
 
+export interface PersonEntryIncome {
+  id: string;
+  type: 'Lube Sale' | 'POS Commission' | 'Other';
+  description: string;
+  amount: number;
+}
+
 export interface PersonEntryDenominations {
   d500: number;
   d200: number;
@@ -35,6 +42,8 @@ export interface PersonEntryRecord {
   gross_amount: number;
   expenses: PersonEntryExpense[];
   total_expenses: number;
+  incomes: PersonEntryIncome[];
+  total_income: number;
   net_payable: number;
   denominations: PersonEntryDenominations;
   total_cash: number;
@@ -62,6 +71,8 @@ export interface PersonEntryInput {
   gross_amount: number;
   expenses: PersonEntryExpense[];
   total_expenses: number;
+  incomes: PersonEntryIncome[];
+  total_income: number;
   net_payable: number;
   denominations: PersonEntryDenominations;
   total_cash: number;

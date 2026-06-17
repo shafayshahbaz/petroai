@@ -29,6 +29,7 @@ import {
   saveDailySalesReport,
   PersonEntryRecord,
 } from '@/services/personEntryService';
+import { listBankDepositsForDate } from '@/services/bankDepositService';
 
 const PRODUCT_LABEL: Record<string, string> = {
   MS: 'Petrol (MS)',
@@ -114,18 +115,42 @@ export default function DailySalesReport() {
   }, [selectedEntries]);
 
   const totals = useMemo(() => {
-    const t = { liters: 0, gross: 0, expenses: 0, net: 0, cash: 0, upi: 0, collected: 0 };
+    const t = {
+      liters: 0, gross: 0, expenses: 0, income: 0, net: 0,
+      cash: 0, upi: 0, collected: 0,
+      d500: 0, d200: 0, d100: 0, d50: 0, d20: 0, d10: 0, coins: 0,
+    };
     for (const e of selectedEntries) {
       t.liters += +e.liters_sold || 0;
       t.gross += +e.gross_amount || 0;
       t.expenses += +e.total_expenses || 0;
+      t.income += +e.total_income || 0;
       t.net += +e.net_payable || 0;
       t.cash += +e.total_cash || 0;
       t.upi += +e.upi_received || 0;
       t.collected += +e.total_collected || 0;
+      const d = e.denominations || ({} as any);
+      t.d500 += +d.d500 || 0;
+      t.d200 += +d.d200 || 0;
+      t.d100 += +d.d100 || 0;
+      t.d50 += +d.d50 || 0;
+      t.d20 += +d.d20 || 0;
+      t.d10 += +d.d10 || 0;
+      t.coins += +d.coins || 0;
     }
     return t;
   }, [selectedEntries]);
+
+  // Pull bank deposits made on the report date to show in the summary
+  const [bankToday, setBankToday] = useState<number>(0);
+  useEffect(() => {
+    if (!reportDate) { setBankToday(0); return; }
+    listBankDepositsForDate(reportDate)
+      .then((rows) => setBankToday(rows.reduce((s, r) => s + Number(r.amount || 0), 0)))
+      .catch(() => setBankToday(0));
+  }, [reportDate]);
+
+  const netCashInHand = totals.collected - bankToday;
 
   const handleConfirm = async (confirm: boolean) => {
     if (!clientId) return;
@@ -302,11 +327,11 @@ export default function DailySalesReport() {
 
       {/* Confirm dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Confirm Sales Report</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 text-sm">
+          <div className="space-y-4 text-sm">
             {reportDate && (
               <div className="rounded-md border bg-muted/40 px-3 py-2">
                 <div className="font-semibold">
@@ -321,9 +346,68 @@ export default function DailySalesReport() {
               <Stat label="Entries" value={String(selectedEntries.length)} />
               <Stat label="Liters Sold" value={`${formatLiters(totals.liters)} L`} />
               <Stat label="Gross" value={formatRupees(totals.gross)} />
-              <Stat label="Expenses" value={formatRupees(totals.expenses)} />
+              <Stat label="Additional Income" value={formatRupees(totals.income)} />
+              <Stat label="Deductions" value={formatRupees(totals.expenses)} />
               <Stat label="Net Payable" value={formatRupees(totals.net)} bold />
-              <Stat label="Total Collected" value={formatRupees(totals.collected)} bold />
+            </div>
+
+            <div className="rounded-md border bg-card overflow-hidden">
+              <div className="bg-muted px-3 py-2 font-semibold text-xs uppercase tracking-wide">
+                Cash Denomination Summary
+              </div>
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="text-left px-3 py-1.5">Denomination</th>
+                    <th className="text-right px-3 py-1.5">Count</th>
+                    <th className="text-right px-3 py-1.5">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {([
+                    ['Rs. 500 notes', totals.d500, 500],
+                    ['Rs. 200 notes', totals.d200, 200],
+                    ['Rs. 100 notes', totals.d100, 100],
+                    ['Rs. 50 notes', totals.d50, 50],
+                    ['Rs. 20 notes', totals.d20, 20],
+                    ['Rs. 10 notes', totals.d10, 10],
+                  ] as const).map(([label, count, note]) => (
+                    <tr key={label} className="border-t">
+                      <td className="px-3 py-1.5">{label}</td>
+                      <td className="text-right px-3 py-1.5">{count}</td>
+                      <td className="text-right px-3 py-1.5">{formatRupees(count * note)}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t">
+                    <td className="px-3 py-1.5">Coins</td>
+                    <td className="text-right px-3 py-1.5">—</td>
+                    <td className="text-right px-3 py-1.5">{formatRupees(totals.coins)}</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr className="border-t bg-muted/60 font-semibold">
+                    <td className="px-3 py-1.5" colSpan={2}>Grand Total Cash</td>
+                    <td className="text-right px-3 py-1.5">{formatRupees(totals.cash)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="rounded-md border bg-card divide-y">
+              <SummaryLine label="Total UPI Collected" value={formatRupees(totals.upi)} />
+              <SummaryLine label="Total Cash from Denominations" value={formatRupees(totals.cash)} />
+              <SummaryLine label="Total Collected" value={formatRupees(totals.collected)} bold />
+              <SummaryLine
+                label="Total Bank Deposited Today"
+                value={formatRupees(bankToday)}
+                hint={reportDate ? `from Bank tab entries on ${format(parseISO(reportDate), 'dd MMM yyyy')}` : undefined}
+              />
+              <SummaryLine
+                label="Net Cash in Hand (carries forward)"
+                value={formatRupees(netCashInHand)}
+                bold
+                accent
+              />
             </div>
           </div>
           <DialogFooter className="gap-2">
@@ -337,6 +421,22 @@ export default function DailySalesReport() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function SummaryLine({
+  label, value, bold, accent, hint,
+}: { label: string; value: string; bold?: boolean; accent?: boolean; hint?: string }) {
+  return (
+    <div className="px-3 py-2 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className={cn('text-sm', bold && 'font-semibold')}>{label}</div>
+        {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
+      </div>
+      <div className={cn('text-sm font-medium', accent && 'text-primary font-bold text-base')}>
+        {value}
+      </div>
     </div>
   );
 }
