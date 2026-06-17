@@ -138,6 +138,41 @@ export default function PersonEntry() {
       .catch(() => {});
   }, [product, date]);
 
+  // Rule 1: when a nozzle is selected, lock the opening reading to the
+  // most recent closing reading recorded for that nozzle (all time).
+  useEffect(() => {
+    if (!nozzleId) {
+      setOpening('');
+      setOpeningLockInfo(null);
+      return;
+    }
+    let alive = true;
+    getLastClosingForNozzle(nozzleId)
+      .then((last) => {
+        if (!alive) return;
+        if (last) {
+          setOpening(String(last.closing_reading));
+          setOpeningLockInfo({
+            date: last.entry_date,
+            nozzle_man_name: last.nozzle_man_name,
+          });
+        } else {
+          // No history yet — first ever entry for this nozzle, user enters opening
+          setOpening('');
+          setOpeningLockInfo(null);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [nozzleId]);
+
+  // Reset nozzle when product filter changes
+  useEffect(() => {
+    setNozzleId('');
+  }, [productFilter]);
+
   const num = (s: string) => {
     const v = parseFloat(s);
     return Number.isFinite(v) ? v : 0;
@@ -189,8 +224,10 @@ export default function PersonEntry() {
 
   const reset = () => {
     setNozzleManId('');
+    setProductFilter('');
     setNozzleId('');
     setOpening('');
+    setOpeningLockInfo(null);
     setClosing('');
     setRate('');
     setExpenses([]);
