@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { CalendarIcon, Plus, Trash2, Loader2, Check, Lock } from 'lucide-react';
+import { CalendarIcon, Plus, Trash2, Loader2, Check, Lock, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCloudData } from '@/contexts/CloudDataContext';
@@ -52,6 +53,15 @@ const PRODUCT_LABEL: Record<string, string> = {
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
+interface NozzleRow {
+  rowId: string;
+  nozzleId: string;
+  opening: string;
+  closing: string;
+  rate: string;
+  openingLockInfo: { date: string; nozzle_man_name: string } | null;
+}
+
 export default function PersonEntry() {
   const { toast } = useToast();
   const { clientId } = useAuth();
@@ -64,29 +74,23 @@ export default function PersonEntry() {
   const [staffSaving, setStaffSaving] = useState(false);
 
   const [nozzleManId, setNozzleManId] = useState<string>('');
-  const [productFilter, setProductFilter] = useState<string>('');
-  const [nozzleId, setNozzleId] = useState<string>('');
+  const [rows, setRows] = useState<NozzleRow[]>([]);
+  const [addNozzleId, setAddNozzleId] = useState<string>('');
 
-  const selectedNozzle = useMemo(
-    () => nozzles.find((n) => n.id === nozzleId),
-    [nozzleId, nozzles]
-  );
-  const product = selectedNozzle?.fuel_type || productFilter || '';
-
-  const filteredNozzles = useMemo(
-    () => (productFilter ? nozzles.filter((n) => n.fuel_type === productFilter) : nozzles),
-    [nozzles, productFilter]
-  );
-
-  // Last-reading lookup per nozzle (used to show product+reading in dropdown)
   const [lastReadings, setLastReadings] = useState<Record<string, number>>({});
+
+  const usedNozzleIds = useMemo(() => new Set(rows.map((r) => r.nozzleId)), [rows]);
+  const availableNozzles = useMemo(
+    () => nozzles.filter((n) => !usedNozzleIds.has(n.id)),
+    [nozzles, usedNozzleIds]
+  );
 
   useEffect(() => {
     let alive = true;
     (async () => {
       const map: Record<string, number> = {};
       await Promise.all(
-        filteredNozzles.map(async (n) => {
+        nozzles.map(async (n) => {
           try {
             const last = await getLastClosingForNozzle(n.id);
             if (last) map[n.id] = last.closing_reading;
@@ -98,16 +102,7 @@ export default function PersonEntry() {
     return () => {
       alive = false;
     };
-  }, [filteredNozzles]);
-
-  const [opening, setOpening] = useState<string>('');
-  const [openingLockInfo, setOpeningLockInfo] = useState<{
-    date: string;
-    nozzle_man_name: string;
-  } | null>(null);
-  const openingLocked = !!openingLockInfo;
-  const [closing, setClosing] = useState<string>('');
-  const [rate, setRate] = useState<string>('');
+  }, [nozzles]);
 
   const [expenses, setExpenses] = useState<PersonEntryExpense[]>([]);
   const [incomes, setIncomes] = useState<PersonEntryIncome[]>([]);
@@ -124,75 +119,71 @@ export default function PersonEntry() {
   const [submitting, setSubmitting] = useState(false);
   const [summary, setSummary] = useState<any | null>(null);
 
-  // Load staff
   useEffect(() => {
-    if (clientId) {
-      listNozzleMen().then(setStaff).catch(() => {});
-    }
+    if (clientId) listNozzleMen().then(setStaff).catch(() => {});
   }, [clientId]);
-
-  // Auto-fill rate: daily rate first, then default rate from Settings
-  useEffect(() => {
-    if (!product || !clientId) return;
-    const ds = format(date, 'yyyy-MM-dd');
-    (async () => {
-      try {
-        const daily = await getDailyRate(ds, product);
-        if (daily != null) {
-          setRate(String(daily));
-          return;
-        }
-        const defaults = await getDefaultRates(clientId);
-        if (defaults[product] != null) setRate(String(defaults[product]));
-      } catch {}
-    })();
-  }, [product, date, clientId]);
-
-  // Rule 1: when a nozzle is selected, lock the opening reading to the
-  // most recent closing reading recorded for that nozzle (all time).
-  // If no history exists yet, fall back to the per-nozzle Opening Reading
-  // configured in Settings.
-  useEffect(() => {
-    if (!nozzleId) {
-      setOpening('');
-      setOpeningLockInfo(null);
-      return;
-    }
-    let alive = true;
-    getLastClosingForNozzle(nozzleId)
-      .then((last) => {
-        if (!alive) return;
-        if (last) {
-          setOpening(String(last.closing_reading));
-          setOpeningLockInfo({
-            date: last.entry_date,
-            nozzle_man_name: last.nozzle_man_name,
-          });
-        } else {
-          // First-ever entry for this nozzle — seed from Settings opening
-          const seed = Number((selectedNozzle as any)?.opening_reading || 0);
-          setOpening(seed > 0 ? String(seed) : '');
-          setOpeningLockInfo(null);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [nozzleId, selectedNozzle]);
-
-  // Reset nozzle when product filter changes
-  useEffect(() => {
-    setNozzleId('');
-  }, [productFilter]);
 
   const num = (s: string) => {
     const v = parseFloat(s);
     return Number.isFinite(v) ? v : 0;
   };
 
-  const liters = Math.max(0, num(closing) - num(opening));
-  const grossAmount = liters * num(rate);
+  const addRow = async (nozzleId: string) => {
+    if (!nozzleId) return;
+    const nz = nozzles.find((n) => n.id === nozzleId);
+    if (!nz) return;
+    const rowId = newId();
+    // Push placeholder, then async fill opening + rate
+    setRows((rs) => [
+      ...rs,
+      { rowId, nozzleId, opening: '', closing: '', rate: '', openingLockInfo: null },
+    ]);
+    setAddNozzleId('');
+
+    // Fetch opening + rate in parallel
+    try {
+      const ds = format(date, 'yyyy-MM-dd');
+      const [last, daily] = await Promise.all([
+        getLastClosingForNozzle(nozzleId).catch(() => null),
+        getDailyRate(ds, nz.fuel_type).catch(() => null),
+      ]);
+      let opening = '';
+      let openingLockInfo: NozzleRow['openingLockInfo'] = null;
+      if (last) {
+        opening = String(last.closing_reading);
+        openingLockInfo = { date: last.entry_date, nozzle_man_name: last.nozzle_man_name };
+      } else {
+        const seed = Number((nz as any)?.opening_reading || 0);
+        opening = seed > 0 ? String(seed) : '';
+      }
+      let rate = daily != null ? String(daily) : '';
+      if (!rate && clientId) {
+        try {
+          const defaults = await getDefaultRates(clientId);
+          if (defaults[nz.fuel_type] != null) rate = String(defaults[nz.fuel_type]);
+        } catch {}
+      }
+      setRows((rs) =>
+        rs.map((r) => (r.rowId === rowId ? { ...r, opening, openingLockInfo, rate } : r))
+      );
+    } catch {}
+  };
+
+  const updateRow = (rowId: string, patch: Partial<NozzleRow>) =>
+    setRows((rs) => rs.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r)));
+
+  const removeRow = (rowId: string) =>
+    setRows((rs) => rs.filter((r) => r.rowId !== rowId));
+
+  // Per-row computed
+  const rowCalc = (r: NozzleRow) => {
+    const liters = Math.max(0, num(r.closing) - num(r.opening));
+    const gross = liters * num(r.rate);
+    return { liters, gross };
+  };
+
+  const totalLiters = rows.reduce((s, r) => s + rowCalc(r).liters, 0);
+  const grossAmount = rows.reduce((s, r) => s + rowCalc(r).gross, 0);
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const totalIncome = incomes.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const netPayable = grossAmount + totalIncome - totalExpenses;
@@ -208,28 +199,18 @@ export default function PersonEntry() {
   const difference = totalCollected - netPayable;
 
   const addExpenseRow = () =>
-    setExpenses((rows) => [
-      ...rows,
-      { id: newId(), type: 'Pump Expense', description: '', amount: 0 },
-    ]);
-
+    setExpenses((rs) => [...rs, { id: newId(), type: 'Pump Expense', description: '', amount: 0 }]);
   const updateExpense = (id: string, patch: Partial<PersonEntryExpense>) =>
-    setExpenses((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-
+    setExpenses((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const removeExpense = (id: string) =>
-    setExpenses((rows) => rows.filter((r) => r.id !== id));
+    setExpenses((rs) => rs.filter((r) => r.id !== id));
 
   const addIncomeRow = () =>
-    setIncomes((rows) => [
-      ...rows,
-      { id: newId(), type: 'Lube Sale', description: '', amount: 0 },
-    ]);
-
+    setIncomes((rs) => [...rs, { id: newId(), type: 'Lube Sale', description: '', amount: 0 }]);
   const updateIncome = (id: string, patch: Partial<PersonEntryIncome>) =>
-    setIncomes((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-
+    setIncomes((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const removeIncome = (id: string) =>
-    setIncomes((rows) => rows.filter((r) => r.id !== id));
+    setIncomes((rs) => rs.filter((r) => r.id !== id));
 
   const handleAddStaff = async () => {
     if (!clientId || !newStaffName.trim()) return;
@@ -250,12 +231,8 @@ export default function PersonEntry() {
 
   const reset = () => {
     setNozzleManId('');
-    setProductFilter('');
-    setNozzleId('');
-    setOpening('');
-    setOpeningLockInfo(null);
-    setClosing('');
-    setRate('');
+    setRows([]);
+    setAddNozzleId('');
     setExpenses([]);
     setIncomes([]);
     setD500(''); setD200(''); setD100(''); setD50(''); setD20(''); setD10(''); setCoins('');
@@ -269,54 +246,108 @@ export default function PersonEntry() {
       toast({ title: 'Select nozzle man', variant: 'destructive' });
       return;
     }
-    if (!selectedNozzle) {
-      toast({ title: 'Select nozzle', variant: 'destructive' });
+    if (rows.length === 0) {
+      toast({ title: 'Add at least one nozzle', variant: 'destructive' });
       return;
     }
-    if (liters <= 0) {
-      toast({ title: 'Closing must be greater than opening', variant: 'destructive' });
-      return;
+    for (const r of rows) {
+      const { liters } = rowCalc(r);
+      if (liters <= 0) {
+        const nz = nozzles.find((n) => n.id === r.nozzleId);
+        toast({
+          title: `Closing must be greater than opening`,
+          description: `Nozzle: ${nz?.label || ''}`,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
+
     setSubmitting(true);
     try {
       const ds = format(date, 'yyyy-MM-dd');
-      // Persist today's rate so subsequent entries auto-fill
-      if (num(rate) > 0) {
-        await upsertDailyRate(clientId, ds, product, num(rate));
+
+      // Persist today's rate per distinct product
+      const ratePerProduct = new Map<string, number>();
+      for (const r of rows) {
+        const nz = nozzles.find((n) => n.id === r.nozzleId);
+        if (nz && num(r.rate) > 0 && !ratePerProduct.has(nz.fuel_type)) {
+          ratePerProduct.set(nz.fuel_type, num(r.rate));
+        }
       }
-      const payload = {
-        entry_date: ds,
-        nozzle_man_id: nm.id,
+      await Promise.all(
+        Array.from(ratePerProduct.entries()).map(([p, rt]) =>
+          upsertDailyRate(clientId, ds, p, rt).catch(() => {})
+        )
+      );
+
+      // Build one DB row per nozzle. Settlement fields (expenses/income/
+      // denominations/upi/difference) are stored on the first row only so
+      // aggregations don't double-count them.
+      let lastPayload: any = null;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const nz = nozzles.find((n) => n.id === r.nozzleId)!;
+        const { liters, gross } = rowCalc(r);
+        const isPrimary = i === 0;
+        const payload = {
+          entry_date: ds,
+          nozzle_man_id: nm.id,
+          nozzle_man_name: nm.name,
+          nozzle_id: nz.id,
+          nozzle_label: nz.label,
+          product: nz.fuel_type,
+          opening_reading: num(r.opening),
+          closing_reading: num(r.closing),
+          liters_sold: liters,
+          rate: num(r.rate),
+          gross_amount: gross,
+          expenses: isPrimary ? expenses : [],
+          total_expenses: isPrimary ? totalExpenses : 0,
+          incomes: isPrimary ? incomes : [],
+          total_income: isPrimary ? totalIncome : 0,
+          // For primary row, net_payable reflects full shift settlement;
+          // for additional rows it's just this nozzle's gross.
+          net_payable: isPrimary ? netPayable : gross,
+          denominations: isPrimary
+            ? {
+                d500: num(d500), d200: num(d200), d100: num(d100),
+                d50: num(d50), d20: num(d20), d10: num(d10), coins: num(coins),
+              }
+            : { d500: 0, d200: 0, d100: 0, d50: 0, d20: 0, d10: 0, coins: 0 },
+          total_cash: isPrimary ? totalCash : 0,
+          upi_received: isPrimary ? num(upi) : 0,
+          total_collected: isPrimary ? totalCollected : 0,
+          difference: isPrimary ? difference : 0,
+        };
+        await createPersonEntry(payload, clientId);
+        lastPayload = payload;
+      }
+
+      setSummary({
+        date: format(date, 'dd MMM yyyy'),
         nozzle_man_name: nm.name,
-        nozzle_id: selectedNozzle.id,
-        nozzle_label: selectedNozzle.label,
-        product,
-        opening_reading: num(opening),
-        closing_reading: num(closing),
-        liters_sold: liters,
-        rate: num(rate),
+        nozzles: rows.map((r) => {
+          const nz = nozzles.find((n) => n.id === r.nozzleId);
+          const { liters, gross } = rowCalc(r);
+          return {
+            label: nz?.label || '',
+            product: nz?.fuel_type || '',
+            liters,
+            rate: num(r.rate),
+            gross,
+          };
+        }),
         gross_amount: grossAmount,
-        expenses,
         total_expenses: totalExpenses,
-        incomes,
         total_income: totalIncome,
         net_payable: netPayable,
-        denominations: {
-          d500: num(d500), d200: num(d200), d100: num(d100),
-          d50: num(d50), d20: num(d20), d10: num(d10), coins: num(coins),
-        },
         total_cash: totalCash,
         upi_received: num(upi),
         total_collected: totalCollected,
         difference,
-      };
-      await createPersonEntry(payload, clientId);
-
-      setSummary({
-        ...payload,
-        date: format(date, 'dd MMM yyyy'),
       });
-      toast({ title: 'Entry saved' });
+      toast({ title: `Saved ${rows.length} nozzle entr${rows.length === 1 ? 'y' : 'ies'}` });
       reset();
     } catch (e: any) {
       toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
@@ -358,7 +389,7 @@ export default function PersonEntry() {
     <div className="space-y-6 animate-fade-in pb-24">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Person Entry</h1>
-        <p className="text-muted-foreground">Record a nozzle-man's shift settlement</p>
+        <p className="text-muted-foreground">Record a nozzle-man's shift settlement (multiple nozzles supported)</p>
       </div>
 
       <Card>
@@ -366,7 +397,7 @@ export default function PersonEntry() {
           <CardTitle className="text-base">Shift Info</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Date</Label>
               <Popover>
@@ -410,101 +441,147 @@ export default function PersonEntry() {
                 </Button>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label>Product</Label>
-              <Select value={productFilter} onValueChange={setProductFilter}>
-                <SelectTrigger><SelectValue placeholder="Select product first" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MS">Petrol (MS)</SelectItem>
-                  <SelectItem value="HSD">Diesel (HSD)</SelectItem>
-                  <SelectItem value="POWER">Power</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Nozzle</Label>
-              <Select
-                value={nozzleId}
-                onValueChange={setNozzleId}
-                disabled={!productFilter}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={productFilter ? 'Select nozzle' : 'Pick product first'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredNozzles.map((n) => {
-                    const last = lastReadings[n.id];
-                    return (
-                      <SelectItem key={n.id} value={n.id}>
-                        {n.label} — {PRODUCT_LABEL[n.fuel_type] || n.fuel_type}
-                        {last !== undefined && ` · last: ${last}`}
-                      </SelectItem>
-                    );
-                  })}
-                  {filteredNozzles.length === 0 && (
-                    <div className="p-2 text-sm text-muted-foreground">
-                      {productFilter ? 'No nozzles for this product' : 'Select a product first'}
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Meter Readings & Rate</CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base">Nozzles in this Shift</CardTitle>
+            <Badge variant="secondary">{rows.length} selected</Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1">
-                Opening Reading
-                {openingLocked && <Lock className="w-3 h-3 text-muted-foreground" />}
-              </Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                value={opening}
-                onChange={(e) => !openingLocked && setOpening(e.target.value)}
-                readOnly={openingLocked}
-                className={cn('text-base', openingLocked && 'bg-muted cursor-not-allowed')}
-              />
-              {openingLocked && openingLockInfo && (
-                <p className="text-xs text-muted-foreground">
-                  Locked: fetched from last closing entry on{' '}
-                  {format(parseISO(openingLockInfo.date), 'dd MMM yyyy')} by{' '}
-                  {openingLockInfo.nozzle_man_name}.
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Closing Reading</Label>
-              <Input type="number" inputMode="decimal" value={closing} onChange={(e) => setClosing(e.target.value)} className="text-base" />
-            </div>
-            <div className="space-y-2">
-              <Label>Liters Sold</Label>
-              <div className="h-10 rounded-md border bg-muted px-3 flex items-center font-semibold">
-                {formatLiters(liters)} L
+          {/* Add nozzle picker */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Select value={addNozzleId} onValueChange={setAddNozzleId}>
+              <SelectTrigger className="flex-1">
+                <SelectValue
+                  placeholder={
+                    availableNozzles.length > 0
+                      ? 'Pick a nozzle to add'
+                      : 'All nozzles added'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {availableNozzles.map((n) => {
+                  const last = lastReadings[n.id];
+                  return (
+                    <SelectItem key={n.id} value={n.id}>
+                      {n.label} — {PRODUCT_LABEL[n.fuel_type] || n.fuel_type}
+                      {last !== undefined && ` · last: ${last}`}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => addRow(addNozzleId)} disabled={!addNozzleId}>
+              <Plus className="w-4 h-4 mr-1" /> Add Nozzle
+            </Button>
+          </div>
+
+          {rows.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No nozzles added. Add one or more nozzles operated by this person.
+            </p>
+          )}
+
+          {rows.map((r) => {
+            const nz = nozzles.find((n) => n.id === r.nozzleId);
+            const { liters, gross } = rowCalc(r);
+            const locked = !!r.openingLockInfo;
+            return (
+              <div key={r.rowId} className="rounded-lg border p-3 space-y-3 bg-muted/30">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-semibold text-sm">{nz?.label}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {PRODUCT_LABEL[nz?.fuel_type || ''] || nz?.fuel_type}
+                    </div>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeRow(r.rowId)}
+                    aria-label="Remove nozzle"
+                    className="h-8 w-8"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs flex items-center gap-1">
+                      Opening
+                      {locked && <Lock className="w-3 h-3 text-muted-foreground" />}
+                    </Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={r.opening}
+                      onChange={(e) => !locked && updateRow(r.rowId, { opening: e.target.value })}
+                      readOnly={locked}
+                      className={cn('text-base', locked && 'bg-muted cursor-not-allowed')}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Closing</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={r.closing}
+                      onChange={(e) => updateRow(r.rowId, { closing: e.target.value })}
+                      className="text-base"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Rate / L</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={r.rate}
+                      onChange={(e) => updateRow(r.rowId, { rate: e.target.value })}
+                      className="text-base"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Liters</Label>
+                    <div className="h-10 rounded-md border bg-background px-3 flex items-center font-medium text-sm">
+                      {formatLiters(liters)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between border-t pt-2 text-sm">
+                  <span className="text-muted-foreground">Sale Amount</span>
+                  <span className="font-semibold text-primary">{formatRupees(gross)}</span>
+                </div>
+
+                {locked && r.openingLockInfo && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Opening locked from {format(parseISO(r.openingLockInfo.date), 'dd MMM')} ·{' '}
+                    {r.openingLockInfo.nozzle_man_name}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+
+          {rows.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 border-t pt-3 text-sm">
+              <div className="flex justify-between bg-muted/50 rounded px-2 py-1">
+                <span className="text-muted-foreground">Total Liters</span>
+                <span className="font-semibold">{formatLiters(totalLiters)}</span>
+              </div>
+              <div className="flex justify-between bg-primary/10 rounded px-2 py-1">
+                <span className="text-muted-foreground">Total Sales</span>
+                <span className="font-bold text-primary">{formatRupees(grossAmount)}</span>
               </div>
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Rate per Liter {product && `(${PRODUCT_LABEL[product]})`}</Label>
-              <Input type="number" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} className="text-base" />
-            </div>
-            <div className="space-y-2">
-              <Label>Gross Sales Amount</Label>
-              <div className="h-10 rounded-md border bg-primary/10 text-primary px-3 flex items-center font-bold text-lg">
-                {formatRupees(grossAmount)}
-              </div>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -513,7 +590,7 @@ export default function PersonEntry() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Expenses</CardTitle>
             <Button onClick={addExpenseRow} size="sm" variant="outline">
-              <Plus className="w-4 h-4 mr-1" /> Add Expense
+              <Plus className="w-4 h-4 mr-1" /> Add
             </Button>
           </div>
         </CardHeader>
@@ -582,7 +659,7 @@ export default function PersonEntry() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Additional Income</CardTitle>
             <Button onClick={addIncomeRow} size="sm" variant="outline">
-              <Plus className="w-4 h-4 mr-1" /> Add Income
+              <Plus className="w-4 h-4 mr-1" /> Add
             </Button>
           </div>
         </CardHeader>
@@ -767,11 +844,19 @@ export default function PersonEntry() {
             <div id="entry-summary" className="space-y-2 text-sm bg-card p-4 rounded-md border">
               <div className="flex justify-between"><span className="text-muted-foreground">Date</span><span className="font-medium">{summary.date}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Nozzle Man</span><span className="font-medium">{summary.nozzle_man_name}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Nozzle</span><span className="font-medium">{summary.nozzle_label} ({PRODUCT_LABEL[summary.product] || summary.product})</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Liters Sold</span><span className="font-medium">{formatLiters(summary.liters_sold)} L</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Rate</span><span className="font-medium">{formatRupees(summary.rate)}</span></div>
+              <div className="border-t pt-2 space-y-1">
+                {summary.nozzles.map((n: any, i: number) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {n.label} ({PRODUCT_LABEL[n.product] || n.product}) · {formatLiters(n.liters)}L @ {formatRupees(n.rate)}
+                    </span>
+                    <span className="font-medium">{formatRupees(n.gross)}</span>
+                  </div>
+                ))}
+              </div>
               <div className="flex justify-between border-t pt-2"><span>Gross Sales</span><span className="font-semibold">{formatRupees(summary.gross_amount)}</span></div>
               <div className="flex justify-between"><span>Expenses</span><span className="font-semibold">{formatRupees(summary.total_expenses)}</span></div>
+              <div className="flex justify-between"><span>Income</span><span className="font-semibold">{formatRupees(summary.total_income)}</span></div>
               <div className="flex justify-between"><span>Net Payable</span><span className="font-bold text-primary">{formatRupees(summary.net_payable)}</span></div>
               <div className="flex justify-between"><span>Total Cash</span><span className="font-semibold">{formatRupees(summary.total_cash)}</span></div>
               <div className="flex justify-between"><span>UPI</span><span className="font-semibold">{formatRupees(summary.upi_received)}</span></div>
