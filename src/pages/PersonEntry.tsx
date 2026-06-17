@@ -561,18 +561,98 @@ export default function PersonEntry() {
             </div>
           ))}
           <div className="flex justify-between border-t pt-3 text-sm">
-            <span className="text-muted-foreground">Total Expenses</span>
+            <span className="text-muted-foreground">Total Deductions</span>
             <span className="font-semibold">{formatRupees(totalExpenses)}</span>
           </div>
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Additional Income</CardTitle>
+            <Button onClick={addIncomeRow} size="sm" variant="outline">
+              <Plus className="w-4 h-4 mr-1" /> Add Income
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {incomes.length === 0 && (
+            <p className="text-sm text-muted-foreground">No additional income added</p>
+          )}
+          {incomes.map((row) => (
+            <div key={row.id} className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-12 md:col-span-3 space-y-1">
+                <Label className="text-xs">Type</Label>
+                <Select
+                  value={row.type}
+                  onValueChange={(v) => updateIncome(row.id, { type: v as any })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INCOME_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-7 md:col-span-5 space-y-1">
+                <Label className="text-xs">Description</Label>
+                <Input
+                  value={row.description}
+                  onChange={(e) => updateIncome(row.id, { description: e.target.value })}
+                  placeholder={
+                    row.type === 'Lube Sale'
+                      ? 'e.g. Engine oil 1L'
+                      : row.type === 'POS Commission'
+                      ? 'e.g. Card swipe commission'
+                      : 'e.g. Misc income'
+                  }
+                  className="text-base"
+                />
+              </div>
+              <div className="col-span-4 md:col-span-3 space-y-1">
+                <Label className="text-xs">Amount</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={row.amount || ''}
+                  onChange={(e) =>
+                    updateIncome(row.id, { amount: parseFloat(e.target.value) || 0 })
+                  }
+                  className="text-base"
+                />
+              </div>
+              <div className="col-span-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeIncome(row.id)}
+                  aria-label="Remove"
+                >
+                  <Trash2 className="w-4 h-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          <div className="flex justify-between border-t pt-3 text-sm">
+            <span className="text-muted-foreground">Total Additional Income</span>
+            <span className="font-semibold text-green-600">{formatRupees(totalIncome)}</span>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="border-2 border-primary/40">
-        <CardContent className="py-4 flex items-center justify-between">
-          <span className="text-base font-medium">Net Amount Payable</span>
-          <span className="text-2xl md:text-3xl font-extrabold text-primary">
-            {formatRupees(netPayable)}
-          </span>
+        <CardContent className="py-4 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-base font-medium">Net Payable</span>
+            <span className="text-2xl md:text-3xl font-extrabold text-primary">
+              {formatRupees(netPayable)}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Gross {formatRupees(grossAmount)} + Income {formatRupees(totalIncome)} − Deductions {formatRupees(totalExpenses)} = {formatRupees(netPayable)}
+          </p>
         </CardContent>
       </Card>
 

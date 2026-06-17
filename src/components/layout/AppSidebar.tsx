@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileText, ClipboardList, Fuel, Menu, X, BookOpen, Users, Truck, Database, Settings, LogOut, PlayCircle, UserCheck } from 'lucide-react';
+import { LayoutDashboard, FileText, ClipboardList, Fuel, Menu, X, BookOpen, Users, Truck, Database, Settings, LogOut, PlayCircle, UserCheck, Landmark } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,10 @@ const getNavItems = (t: (key: string) => string) => [{
   to: '/debtors',
   icon: Users,
   label: t('debtors')
+}, {
+  to: '/bank',
+  icon: Landmark,
+  label: t('bank')
 }, {
   to: '/settings',
   icon: Settings,

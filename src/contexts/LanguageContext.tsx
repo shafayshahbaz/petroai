@@ -20,6 +20,7 @@ const translations: Translations = {
   dailySalesReport: { en: 'Daily Sales Report', hi: 'दैनिक बिक्री रिपोर्ट' },
   ledger: { en: 'Ledger', hi: 'खाता बही' },
   debtors: { en: 'Debtors', hi: 'देनदार' },
+  bank: { en: 'Bank', hi: 'बैंक' },
   settings: { en: 'Settings', hi: 'सेटिंग्स' },
   howToUse: { en: 'How to Use', hi: 'कैसे उपयोग करें' },
   
