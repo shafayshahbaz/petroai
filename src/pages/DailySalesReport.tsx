@@ -29,6 +29,7 @@ import {
   saveDailySalesReport,
   PersonEntryRecord,
 } from '@/services/personEntryService';
+import { listBankDepositsForDate } from '@/services/bankDepositService';
 
 const PRODUCT_LABEL: Record<string, string> = {
   MS: 'Petrol (MS)',
@@ -114,18 +115,42 @@ export default function DailySalesReport() {
   }, [selectedEntries]);
 
   const totals = useMemo(() => {
-    const t = { liters: 0, gross: 0, expenses: 0, net: 0, cash: 0, upi: 0, collected: 0 };
+    const t = {
+      liters: 0, gross: 0, expenses: 0, income: 0, net: 0,
+      cash: 0, upi: 0, collected: 0,
+      d500: 0, d200: 0, d100: 0, d50: 0, d20: 0, d10: 0, coins: 0,
+    };
     for (const e of selectedEntries) {
       t.liters += +e.liters_sold || 0;
       t.gross += +e.gross_amount || 0;
       t.expenses += +e.total_expenses || 0;
+      t.income += +e.total_income || 0;
       t.net += +e.net_payable || 0;
       t.cash += +e.total_cash || 0;
       t.upi += +e.upi_received || 0;
       t.collected += +e.total_collected || 0;
+      const d = e.denominations || ({} as any);
+      t.d500 += +d.d500 || 0;
+      t.d200 += +d.d200 || 0;
+      t.d100 += +d.d100 || 0;
+      t.d50 += +d.d50 || 0;
+      t.d20 += +d.d20 || 0;
+      t.d10 += +d.d10 || 0;
+      t.coins += +d.coins || 0;
     }
     return t;
   }, [selectedEntries]);
+
+  // Pull bank deposits made on the report date to show in the summary
+  const [bankToday, setBankToday] = useState<number>(0);
+  useEffect(() => {
+    if (!reportDate) { setBankToday(0); return; }
+    listBankDepositsForDate(reportDate)
+      .then((rows) => setBankToday(rows.reduce((s, r) => s + Number(r.amount || 0), 0)))
+      .catch(() => setBankToday(0));
+  }, [reportDate]);
+
+  const netCashInHand = totals.collected - bankToday;
 
   const handleConfirm = async (confirm: boolean) => {
     if (!clientId) return;
