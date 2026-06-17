@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Create the client record
+    // Create the client record (never store any password-related hint)
     const { error: clientError } = await adminClient
       .from('clients')
       .insert({
@@ -96,7 +96,6 @@ Deno.serve(async (req) => {
         pump_name: pumpName,
         owner_name: ownerName,
         phone: phone || null,
-        temp_password_hint: `Generated: ${password.slice(-4)}****`,
       })
 
     if (clientError) {
