@@ -337,7 +337,7 @@ export default function PersonEntry() {
           <CardTitle className="text-base">Shift Info</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Date</Label>
               <Popover>
@@ -383,23 +383,44 @@ export default function PersonEntry() {
             </div>
 
             <div className="space-y-2">
-              <Label>Nozzle</Label>
-              <Select value={nozzleId} onValueChange={setNozzleId}>
-                <SelectTrigger><SelectValue placeholder="Select nozzle" /></SelectTrigger>
+              <Label>Product</Label>
+              <Select value={productFilter} onValueChange={setProductFilter}>
+                <SelectTrigger><SelectValue placeholder="Select product first" /></SelectTrigger>
                 <SelectContent>
-                  {nozzles.map((n) => (
-                    <SelectItem key={n.id} value={n.id}>
-                      {n.label} — {PRODUCT_LABEL[n.fuel_type] || n.fuel_type}
-                    </SelectItem>
-                  ))}
-                  {nozzles.length === 0 && (
-                    <div className="p-2 text-sm text-muted-foreground">No nozzles configured</div>
+                  <SelectItem value="MS">Petrol (MS)</SelectItem>
+                  <SelectItem value="HSD">Diesel (HSD)</SelectItem>
+                  <SelectItem value="POWER">Power</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Nozzle</Label>
+              <Select
+                value={nozzleId}
+                onValueChange={setNozzleId}
+                disabled={!productFilter}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={productFilter ? 'Select nozzle' : 'Pick product first'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredNozzles.map((n) => {
+                    const last = lastReadings[n.id];
+                    return (
+                      <SelectItem key={n.id} value={n.id}>
+                        {n.label} — {PRODUCT_LABEL[n.fuel_type] || n.fuel_type}
+                        {last !== undefined && ` · last: ${last}`}
+                      </SelectItem>
+                    );
+                  })}
+                  {filteredNozzles.length === 0 && (
+                    <div className="p-2 text-sm text-muted-foreground">
+                      {productFilter ? 'No nozzles for this product' : 'Select a product first'}
+                    </div>
                   )}
                 </SelectContent>
               </Select>
-              {product && (
-                <p className="text-xs text-muted-foreground">Product: {PRODUCT_LABEL[product] || product}</p>
-              )}
             </div>
           </div>
         </CardContent>
@@ -412,8 +433,25 @@ export default function PersonEntry() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Opening Reading</Label>
-              <Input type="number" inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} className="text-base" />
+              <Label className="flex items-center gap-1">
+                Opening Reading
+                {openingLocked && <Lock className="w-3 h-3 text-muted-foreground" />}
+              </Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={opening}
+                onChange={(e) => !openingLocked && setOpening(e.target.value)}
+                readOnly={openingLocked}
+                className={cn('text-base', openingLocked && 'bg-muted cursor-not-allowed')}
+              />
+              {openingLocked && openingLockInfo && (
+                <p className="text-xs text-muted-foreground">
+                  Locked: fetched from last closing entry on{' '}
+                  {format(parseISO(openingLockInfo.date), 'dd MMM yyyy')} by{' '}
+                  {openingLockInfo.nozzle_man_name}.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Closing Reading</Label>
