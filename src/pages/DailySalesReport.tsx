@@ -58,7 +58,9 @@ export default function DailySalesReport() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showIncluded, setShowIncluded] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
 
   const refresh = async () => {
     setLoading(true);
