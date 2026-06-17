@@ -664,13 +664,8 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* Password Hint */}
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">Password hint: </span>
-                        <code className="bg-muted px-1.5 py-0.5 rounded">
-                          {client.temp_password_hint || 'Not set'}
-                        </code>
-                      </div>
+                      {/* Password hints intentionally not stored or shown */}
+
 
                       {/* Actions */}
                       <div className="flex flex-wrap gap-2 pt-2">
