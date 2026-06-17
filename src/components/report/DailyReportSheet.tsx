@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { DailyEntry, FuelType } from '@/types/petrol-pump';
 import { calculateTotals } from '@/store/petrol-pump-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { getDipReadingsForDate, listTanks, type TankRow, type DipReadingRow } from '@/services/dipService';
 
 interface DailyReportSheetProps {
   entry: DailyEntry;
