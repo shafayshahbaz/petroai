@@ -163,6 +163,44 @@ export default function DailySalesReport() {
 
   const netCashInHand = totals.collected - bankToday;
 
+  const reportData: SalesReportData | null = useMemo(() => {
+    if (!reportDate) return null;
+    return {
+      reportDate,
+      entries: selectedEntries,
+      totals,
+      bankDeposited: bankToday,
+      netCashInHand,
+    };
+  }, [reportDate, selectedEntries, totals, bankToday, netCashInHand]);
+
+  const handleDownload = () => {
+    if (!reportData) return;
+    const html = buildPrintableHtml(reportData);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `daily-sales-report-${reportData.reportDate}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handlePrintView = () => {
+    if (!reportData) return;
+    const html = buildPrintableHtml(reportData);
+    const w = window.open('', '_blank');
+    if (!w) {
+      toast({ title: 'Pop-up blocked', description: 'Allow pop-ups to print', variant: 'destructive' });
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+  };
+
+
   const handleConfirm = async (confirm: boolean) => {
     if (!clientId) return;
     if (selectedEntries.length === 0) {
