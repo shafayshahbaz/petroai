@@ -25,6 +25,29 @@ function formatCurrency(amount: number): string {
 export function DailyReportSheet({ entry }: DailyReportSheetProps) {
   const { businessProfile } = useSettingsStore();
   const totals = calculateTotals(entry);
+  const [dipReadings, setDipReadings] = useState<DipReadingRow[]>([]);
+  const [dipTanks, setDipTanks] = useState<TankRow[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [reads, tanks] = await Promise.all([
+          getDipReadingsForDate(entry.date),
+          listTanks(),
+        ]);
+        if (!cancelled) {
+          setDipReadings(reads);
+          setDipTanks(tanks);
+        }
+      } catch {
+        // silent — section is optional
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [entry.date]);
 
   const groupedNozzles = {
     MS: entry.nozzles.filter((n) => n.fuelType === 'MS'),
