@@ -75,15 +75,20 @@ export default function PersonEntry() {
 
   const [nozzleManId, setNozzleManId] = useState<string>('');
   const [rows, setRows] = useState<NozzleRow[]>([]);
+  const [addProduct, setAddProduct] = useState<string>('');
   const [addNozzleId, setAddNozzleId] = useState<string>('');
 
   const [lastReadings, setLastReadings] = useState<Record<string, number>>({});
 
   const usedNozzleIds = useMemo(() => new Set(rows.map((r) => r.nozzleId)), [rows]);
   const availableNozzles = useMemo(
-    () => nozzles.filter((n) => !usedNozzleIds.has(n.id)),
-    [nozzles, usedNozzleIds]
+    () =>
+      nozzles.filter(
+        (n) => !usedNozzleIds.has(n.id) && (!addProduct || n.fuel_type === addProduct)
+      ),
+    [nozzles, usedNozzleIds, addProduct]
   );
+
 
   useEffect(() => {
     let alive = true;
