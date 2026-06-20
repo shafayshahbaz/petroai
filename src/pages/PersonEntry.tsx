@@ -524,7 +524,7 @@ export default function PersonEntry() {
 
           {rows.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No nozzles added. Add one or more nozzles operated by this person.
+              Add a nozzle to start.
             </p>
           )}
 
