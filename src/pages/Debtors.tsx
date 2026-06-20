@@ -210,7 +210,14 @@ export default function Debtors() {
               ) : (
                 debtors.map((debtor) => (
                   <TableRow key={debtor.id}>
-                    <TableCell className="font-medium">{debtor.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <button
+                        onClick={() => setStatementDebtor({ id: debtor.id, name: debtor.name, opening: debtor.opening_balance || 0 })}
+                        className="text-primary hover:underline text-left"
+                      >
+                        {debtor.name}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       {debtor.contact_number ? (
                         <span className="flex items-center gap-1 text-muted-foreground">
@@ -229,6 +236,14 @@ export default function Debtors() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setStatementDebtor({ id: debtor.id, name: debtor.name, opening: debtor.opening_balance || 0 })}
+                          aria-label="View statement"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
