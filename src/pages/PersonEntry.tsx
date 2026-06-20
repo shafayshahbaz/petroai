@@ -405,7 +405,6 @@ export default function PersonEntry() {
     <div className="space-y-6 animate-fade-in pb-24">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Person Entry</h1>
-        <p className="text-muted-foreground">Record a nozzle-man's shift settlement (multiple nozzles supported)</p>
       </div>
 
       <Card>
