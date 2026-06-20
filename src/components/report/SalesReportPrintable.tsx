@@ -477,16 +477,13 @@ export function buildPrintableHtml(data: SalesReportData): string {
     ledgerRow(leftTotal, '', true);
 
   const rightRows =
-    ledgerRow(data.bankDeposited, 'Cash Deposit (Bank)') +
+    bankDeposits.map((b) => ledgerRow(b.amount, escapeHtml(b.label))).join('') +
+    cashTransfers.map((c) => ledgerRow(c.amount, escapeHtml(c.label))).join('') +
     ledgerRow(data.totals.upi, 'UPI / Phonepe (Combined)') +
     expenses.map((x) => ledgerRow(x.amount, escapeHtml(x.label))).join('') +
     ledgerRow(rightOps, '', true) +
     ledgerRow(cashInHand, 'Cash In Hand') +
-    ledgerRow(leftTotal, '', true) +
-    `<div class="lsep"></div>` +
-    ledgerRow(saleCash, 'Sale Cash') +
-    ledgerRow(difference, 'Difference') +
-    ledgerRow(cashInHand, '', true);
+    ledgerRow(leftTotal, '', true);
 
   const denomRows = [
     ['Rs. 500', data.totals.d500, 500],
