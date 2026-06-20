@@ -701,6 +701,7 @@ export default function PersonEntry() {
         </CardContent>
       </Card>
 
+      <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Expenses</CardTitle>
