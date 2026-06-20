@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSettingsStore } from '@/store/settings-store';
 import { cn } from '@/lib/utils';
 import { formatRupees, formatLiters } from '@/lib/format';
 import {
