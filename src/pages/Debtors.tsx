@@ -42,6 +42,7 @@ export default function Debtors() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statementDebtor, setStatementDebtor] = useState<{ id: string; name: string; opening: number } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     contactNumber: '',
