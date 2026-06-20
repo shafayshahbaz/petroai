@@ -345,6 +345,14 @@ export default function Debtors() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DebtorStatementDialog
+        open={!!statementDebtor}
+        onOpenChange={(o) => !o && setStatementDebtor(null)}
+        debtorId={statementDebtor?.id ?? null}
+        debtorName={statementDebtor?.name ?? ''}
+        openingBalance={statementDebtor?.opening ?? 0}
+      />
     </div>
   );
 }
