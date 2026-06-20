@@ -646,9 +646,6 @@ export default function DailySalesReport() {
     <div className="space-y-6 animate-fade-in pb-32">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Daily Sales Report</h1>
-        <p className="text-muted-foreground text-sm">
-          Compile shift entries into a consolidated daily report
-        </p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
@@ -659,9 +656,12 @@ export default function DailySalesReport() {
 
         {/* ===== Make Report ===== */}
         <TabsContent value="create" className="space-y-6 mt-4">
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" size="sm" onClick={selectAll}>Select All</Button>
-            <Button variant="outline" size="sm" onClick={deselectAll}>Deselect All</Button>
+          <div className="flex items-center justify-between gap-2">
+            <StepBar current={1} />
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={selectAll}>All</Button>
+              <Button variant="outline" size="sm" onClick={deselectAll}>None</Button>
+            </div>
           </div>
 
           {pending.length > 0 && (
