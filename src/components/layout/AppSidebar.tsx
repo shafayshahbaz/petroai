@@ -84,13 +84,22 @@ export function AppSidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map(item => {
-          const isActive = location.pathname === item.to;
-          return <NavLink key={item.to} to={item.to} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all", "hover:bg-sidebar-accent", isActive ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium" : "text-sidebar-foreground")}>
-                <item.icon className="w-5 h-5 shrink-0" />
-                {!isCollapsed && <span>{item.label}</span>}
-              </NavLink>;
-        })}
+          {navItems.map((item, idx) => {
+            const isActive = location.pathname === item.to;
+            const prev = navItems[idx - 1] as any;
+            const showDivider = (item as any).secondary && !(prev && prev.secondary);
+            return (
+              <div key={item.to}>
+                {showDivider && (
+                  <div className="my-2 border-t border-sidebar-border/60" />
+                )}
+                <NavLink to={item.to} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all", "hover:bg-sidebar-accent", isActive ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium" : "text-sidebar-foreground", (item as any).secondary && !isActive && "text-sidebar-foreground/70")}>
+                  <item.icon className="w-5 h-5 shrink-0" />
+                  {!isCollapsed && <span>{item.label}</span>}
+                </NavLink>
+              </div>
+            );
+          })}
         </nav>
 
         {/* Logout Button */}
