@@ -74,6 +74,7 @@ type WizardStep = 'idle' | 'bank' | 'dip' | 'confirm';
 export default function DailySalesReport() {
   const { toast } = useToast();
   const { clientId } = useAuth();
+  const { businessProfile } = useSettingsStore();
   const [entries, setEntries] = useState<PersonEntryRecord[]>([]);
   const [reports, setReports] = useState<DailySalesReportRow[]>([]);
   const [loading, setLoading] = useState(true);
