@@ -898,6 +898,7 @@ export default function DailySalesReport() {
       <Dialog open={wizard === 'confirm'} onOpenChange={(o) => !o && setWizard('idle')}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
+            <StepBar current={4} />
             <DialogTitle>Confirm Sales Report</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 text-sm">
