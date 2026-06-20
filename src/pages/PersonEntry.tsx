@@ -405,7 +405,6 @@ export default function PersonEntry() {
     <div className="space-y-6 animate-fade-in pb-24">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Person Entry</h1>
-        <p className="text-muted-foreground">Record a nozzle-man's shift settlement (multiple nozzles supported)</p>
       </div>
 
       <Card>
@@ -525,7 +524,7 @@ export default function PersonEntry() {
 
           {rows.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No nozzles added. Add one or more nozzles operated by this person.
+              Add a nozzle to start.
             </p>
           )}
 
@@ -647,7 +646,7 @@ export default function PersonEntry() {
         <CardContent className="space-y-3">
           {testing.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              No testing recorded. Testing liters reduce total sales in the daily report (Total Sales − Testing = Net Sales).
+              Optional. Testing liters are subtracted from sales in the daily report.
             </p>
           )}
           {testing.map((row) => (
@@ -846,22 +845,17 @@ export default function PersonEntry() {
       </Card>
 
       <Card className="border-2 border-primary/40">
-        <CardContent className="py-4 flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="text-base font-medium">Net Payable</span>
-            <span className="text-2xl md:text-3xl font-extrabold text-primary">
-              {formatRupees(netPayable)}
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Gross {formatRupees(grossAmount)} + Income {formatRupees(totalIncome)} − Deductions {formatRupees(totalExpenses)} = {formatRupees(netPayable)}
-          </p>
+        <CardContent className="py-4 flex items-center justify-between">
+          <span className="text-base font-medium">Net Payable</span>
+          <span className="text-2xl md:text-3xl font-extrabold text-primary">
+            {formatRupees(netPayable)}
+          </span>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Cash Received Breakdown</CardTitle>
+          <CardTitle className="text-base">Cash Received</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {denomRow('500 note × qty', d500, setD500, 500)}

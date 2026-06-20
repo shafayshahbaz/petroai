@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Phone, Edit2, Save, Trash2, WifiOff } from 'lucide-react';
+import { Plus, Phone, Edit2, Save, Trash2, WifiOff, FileText } from 'lucide-react';
+import { DebtorStatementDialog } from '@/components/ledger/DebtorStatementDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -41,6 +42,7 @@ export default function Debtors() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statementDebtor, setStatementDebtor] = useState<{ id: string; name: string; opening: number } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     contactNumber: '',
@@ -208,7 +210,14 @@ export default function Debtors() {
               ) : (
                 debtors.map((debtor) => (
                   <TableRow key={debtor.id}>
-                    <TableCell className="font-medium">{debtor.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <button
+                        onClick={() => setStatementDebtor({ id: debtor.id, name: debtor.name, opening: debtor.opening_balance || 0 })}
+                        className="text-primary hover:underline text-left"
+                      >
+                        {debtor.name}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       {debtor.contact_number ? (
                         <span className="flex items-center gap-1 text-muted-foreground">
@@ -227,6 +236,14 @@ export default function Debtors() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setStatementDebtor({ id: debtor.id, name: debtor.name, opening: debtor.opening_balance || 0 })}
+                          aria-label="View statement"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -328,6 +345,14 @@ export default function Debtors() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DebtorStatementDialog
+        open={!!statementDebtor}
+        onOpenChange={(o) => !o && setStatementDebtor(null)}
+        debtorId={statementDebtor?.id ?? null}
+        debtorName={statementDebtor?.name ?? ''}
+        openingBalance={statementDebtor?.opening ?? 0}
+      />
     </div>
   );
 }

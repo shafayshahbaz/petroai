@@ -646,9 +646,6 @@ export default function DailySalesReport() {
     <div className="space-y-6 animate-fade-in pb-32">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Daily Sales Report</h1>
-        <p className="text-muted-foreground text-sm">
-          Compile shift entries into a consolidated daily report
-        </p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
@@ -659,9 +656,12 @@ export default function DailySalesReport() {
 
         {/* ===== Make Report ===== */}
         <TabsContent value="create" className="space-y-6 mt-4">
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" size="sm" onClick={selectAll}>Select All</Button>
-            <Button variant="outline" size="sm" onClick={deselectAll}>Deselect All</Button>
+          <div className="flex items-center justify-between gap-2">
+            <StepBar current={1} />
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={selectAll}>All</Button>
+              <Button variant="outline" size="sm" onClick={deselectAll}>None</Button>
+            </div>
           </div>
 
           {pending.length > 0 && (
@@ -810,10 +810,10 @@ export default function DailySalesReport() {
       <Dialog open={wizard === 'bank'} onOpenChange={(o) => !o && setWizard('idle')}>
         <DialogContent className="max-w-md">
           <DialogHeader>
+            <StepBar current={2} />
             <DialogTitle>Bank Deposit Today?</DialogTitle>
             <DialogDescription>
-              No bank deposit recorded for {reportDate && format(parseISO(reportDate), 'dd MMM yyyy')}.
-              Enter it now, or skip.
+              No bank deposit recorded for {reportDate && format(parseISO(reportDate), 'dd MMM yyyy')}. Enter it now, or skip.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -851,9 +851,10 @@ export default function DailySalesReport() {
       <Dialog open={wizard === 'dip'} onOpenChange={(o) => !o && setWizard('idle')}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
+            <StepBar current={3} />
             <DialogTitle>Did you take Dip today?</DialogTitle>
             <DialogDescription>
-              Enter dip reading (cm) for each tank, or skip to exclude dip from this report.
+              Enter dip reading (cm) for each tank, or skip.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -897,6 +898,7 @@ export default function DailySalesReport() {
       <Dialog open={wizard === 'confirm'} onOpenChange={(o) => !o && setWizard('idle')}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
+            <StepBar current={4} />
             <DialogTitle>Confirm Sales Report</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 text-sm">
@@ -1016,6 +1018,35 @@ function Stat({ label, value, bold }: { label: string; value: string; bold?: boo
       <div className={cn('text-sm', bold ? 'font-bold text-primary' : 'font-medium')}>
         {value}
       </div>
+    </div>
+  );
+}
+
+function StepBar({ current }: { current: 1 | 2 | 3 | 4 }) {
+  const steps = ['Select', 'Bank', 'Dip', 'Confirm'];
+  return (
+    <div className="flex items-center gap-1 mb-2">
+      {steps.map((s, i) => {
+        const n = i + 1;
+        const active = n === current;
+        const done = n < current;
+        return (
+          <div key={s} className="flex items-center gap-1 flex-1">
+            <div
+              className={cn(
+                'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border',
+                active && 'bg-primary text-primary-foreground border-primary',
+                done && 'bg-primary/10 text-primary border-primary/30',
+                !active && !done && 'bg-muted text-muted-foreground border-transparent'
+              )}
+            >
+              <span className="font-bold">{n}</span>
+              <span>{s}</span>
+            </div>
+            {i < steps.length - 1 && <div className="h-px flex-1 bg-border" />}
+          </div>
+        );
+      })}
     </div>
   );
 }

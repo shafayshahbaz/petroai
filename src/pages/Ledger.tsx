@@ -33,6 +33,7 @@ import { recordPaymentReceipt } from '@/services/transactionService';
 import { cn } from '@/lib/utils';
 import { formatAmount } from '@/lib/format';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useSettingsStore } from '@/store/settings-store';
 import { AccountGroupCard } from '@/components/ledger/AccountGroupCard';
 import { AccountListItem } from '@/components/ledger/AccountListItem';
 import { LedgerTransactionTable, LedgerTransaction } from '@/components/ledger/LedgerTransactionTable';
@@ -119,6 +120,7 @@ function exportToCSV(data: (LedgerTransaction & { balance: number })[], filename
 export default function Ledger() {
   const { dailyEntries: cloudEntries, debtors: cloudDebtors, updateDebtor } = useCloudData();
   const { t } = useLanguage();
+  const { businessProfile } = useSettingsStore();
   const { clientId } = useAuth();
   const fyDates = getFYDates();
   
@@ -941,9 +943,12 @@ export default function Ledger() {
       {/* Ledger Table */}
       <div className="ledger-print-table">
         {/* Print Header - only visible in print */}
-        <div className="hidden print:block mb-4">
-          <h2 className="text-xl font-bold text-center">{selectedAccountName}</h2>
-          <p className="text-center text-sm text-muted-foreground">
+        <div className="hidden print:block mb-4 text-center">
+          {businessProfile.companyName && (
+            <h1 className="text-2xl font-bold">{businessProfile.companyName}</h1>
+          )}
+          <h2 className="text-xl font-semibold mt-1">{selectedAccountName}</h2>
+          <p className="text-sm text-muted-foreground">
             Ledger Statement • {format(dateRange.from, 'dd MMM yyyy')} to {format(dateRange.to, 'dd MMM yyyy')}
           </p>
         </div>
