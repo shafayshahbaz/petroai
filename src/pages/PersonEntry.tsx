@@ -326,6 +326,9 @@ export default function PersonEntry() {
             ? {
                 d500: num(d500), d200: num(d200), d100: num(d100),
                 d50: num(d50), d20: num(d20), d10: num(d10), coins: num(coins),
+                _testing: testing
+                  .filter((t) => num(t.liters) > 0)
+                  .map((t) => ({ product: t.product, liters: num(t.liters) })),
               }
             : { d500: 0, d200: 0, d100: 0, d50: 0, d20: 0, d10: 0, coins: 0 },
           total_cash: isPrimary ? totalCash : 0,
