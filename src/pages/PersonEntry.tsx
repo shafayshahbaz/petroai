@@ -855,7 +855,7 @@ export default function PersonEntry() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Cash Received Breakdown</CardTitle>
+          <CardTitle className="text-base">Cash Received</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {denomRow('500 note × qty', d500, setD500, 500)}
