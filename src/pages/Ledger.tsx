@@ -120,6 +120,7 @@ function exportToCSV(data: (LedgerTransaction & { balance: number })[], filename
 export default function Ledger() {
   const { dailyEntries: cloudEntries, debtors: cloudDebtors, updateDebtor } = useCloudData();
   const { t } = useLanguage();
+  const { businessProfile } = useSettingsStore();
   const { clientId } = useAuth();
   const fyDates = getFYDates();
   
