@@ -944,6 +944,67 @@ export default function DailySalesReport() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ===== Edit Entry modal ===== */}
+      <Dialog open={!!editEntry} onOpenChange={(o) => !o && setEditEntry(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Edit Entry {editEntry && `· ${editEntry.nozzle_man_name} · ${editEntry.nozzle_label}`}
+            </DialogTitle>
+            <DialogDescription>
+              Opening reading is locked. Liters & gross recompute automatically.
+            </DialogDescription>
+          </DialogHeader>
+          {editEntry && (
+            <div className="space-y-3">
+              <div className="text-xs text-muted-foreground">
+                Opening: <b className="text-foreground">{editEntry.opening_reading}</b>
+              </div>
+              <div>
+                <Label>Closing Reading</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={editClosing}
+                  onChange={(e) => setEditClosing(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Rate / L</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editRate}
+                  onChange={(e) => setEditRate(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Total Cash</Label>
+                  <Input
+                    type="number"
+                    value={editCash}
+                    onChange={(e) => setEditCash(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>UPI Received</Label>
+                  <Input
+                    type="number"
+                    value={editUpi}
+                    onChange={(e) => setEditUpi(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditEntry(null)}>Cancel</Button>
+            <Button onClick={saveEdit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
