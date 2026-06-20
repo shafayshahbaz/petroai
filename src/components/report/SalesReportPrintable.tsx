@@ -8,6 +8,15 @@ const PRODUCT_LABEL: Record<string, string> = {
   POWER: 'Power',
 };
 
+export interface DipReportRow {
+  tank_name: string;
+  fuel_type: string;
+  dip_reading: number;
+  dip_liters: number | null;
+  system_liters: number | null;
+  variance: number | null;
+}
+
 export interface SalesReportData {
   reportDate: string;
   entries: PersonEntryRecord[];
@@ -19,6 +28,7 @@ export interface SalesReportData {
   bankDeposited: number;
   netCashInHand: number;
   businessName?: string;
+  dipReadings?: DipReportRow[];
 }
 
 /**
