@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSettingsStore } from '@/store/settings-store';
 import { cn } from '@/lib/utils';
 import { formatRupees, formatLiters } from '@/lib/format';
 import {
@@ -73,6 +74,7 @@ type WizardStep = 'idle' | 'bank' | 'dip' | 'confirm';
 export default function DailySalesReport() {
   const { toast } = useToast();
   const { clientId } = useAuth();
+  const { businessProfile } = useSettingsStore();
   const [entries, setEntries] = useState<PersonEntryRecord[]>([]);
   const [reports, setReports] = useState<DailySalesReportRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -196,9 +198,10 @@ export default function DailySalesReport() {
       totals,
       bankDeposited: bankToday,
       netCashInHand,
+      businessName: businessProfile.companyName || undefined,
       dipReadings: dipComputed.length > 0 ? dipComputed : undefined,
     };
-  }, [reportDate, selectedEntries, totals, bankToday, netCashInHand, dipComputed]);
+  }, [reportDate, selectedEntries, totals, bankToday, netCashInHand, dipComputed, businessProfile.companyName]);
 
   const handleDownload = (data: SalesReportData | null) => {
     if (!data) return;
@@ -427,6 +430,7 @@ export default function DailySalesReport() {
         totals: t,
         bankDeposited: bank,
         netCashInHand: t.collected - bank,
+        businessName: businessProfile.companyName || undefined,
         dipReadings,
       });
       setReportViewOpen(true);

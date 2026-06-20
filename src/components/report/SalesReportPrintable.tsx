@@ -2,10 +2,11 @@ import { format, parseISO } from 'date-fns';
 import { formatRupees, formatLiters } from '@/lib/format';
 import { PersonEntryRecord } from '@/services/personEntryService';
 
+const PRODUCT_ORDER = ['MS', 'POWER', 'HSD'];
 const PRODUCT_LABEL: Record<string, string> = {
-  MS: 'Petrol (MS)',
-  HSD: 'Diesel (HSD)',
-  POWER: 'Power',
+  MS: 'MS',
+  POWER: 'POWER',
+  HSD: 'HSD',
 };
 
 export interface DipReportRow {
@@ -28,158 +29,235 @@ export interface SalesReportData {
   bankDeposited: number;
   netCashInHand: number;
   businessName?: string;
+  openingBalance?: number;
   dipReadings?: DipReportRow[];
+  /** Optional: testing deduction per product (liters). Defaults to 0. */
+  testingByProduct?: Record<string, number>;
 }
 
-/**
- * A4-friendly printable sales report. Used in the View dialog and as the
- * body of the downloaded standalone HTML file.
- */
-export function SalesReportPrintable({ data }: { data: SalesReportData }) {
-  const { reportDate, entries, totals, bankDeposited, netCashInHand, businessName } = data;
+// ---------- helpers ----------
 
-  // Group by product for fuel-sales summary
-  const byProduct = entries.reduce<Record<string, { liters: number; gross: number }>>(
-    (acc, e) => {
-      const p = e.product || 'OTHER';
-      if (!acc[p]) acc[p] = { liters: 0, gross: 0 };
-      acc[p].liters += Number(e.liters_sold) || 0;
-      acc[p].gross += Number(e.gross_amount) || 0;
-      return acc;
-    },
-    {}
-  );
+interface NozzleAgg {
+  label: string;
+  opening: number;
+  closing: number;
+  sales: number;
+}
+interface ProductAgg {
+  product: string;
+  nozzles: NozzleAgg[];
+  totalSales: number;
+  testing: number;
+  netSales: number;
+  rate: number; // weighted avg rate
+  amount: number; // netSales * rate
+}
+
+function aggregate(data: SalesReportData): ProductAgg[] {
+  const map: Record<
+    string,
+    {
+      nozzles: Record<string, NozzleAgg>;
+      weightedRateNum: number;
+      litersTotal: number;
+    }
+  > = {};
+
+  for (const e of data.entries) {
+    const p = e.product || 'OTHER';
+    if (!map[p]) map[p] = { nozzles: {}, weightedRateNum: 0, litersTotal: 0 };
+    const key = e.nozzle_label || 'N';
+    if (!map[p].nozzles[key]) {
+      map[p].nozzles[key] = { label: key, opening: 0, closing: 0, sales: 0 };
+    }
+    const n = map[p].nozzles[key];
+    // For multi-shift on same nozzle: keep earliest opening and latest closing
+    // Approximate: smallest opening, largest closing
+    n.opening = n.opening === 0 ? Number(e.opening_reading) : Math.min(n.opening, Number(e.opening_reading));
+    n.closing = Math.max(n.closing, Number(e.closing_reading));
+    n.sales = Math.round((n.closing - n.opening) * 100) / 100;
+    map[p].weightedRateNum += Number(e.rate) * Number(e.liters_sold);
+    map[p].litersTotal += Number(e.liters_sold);
+  }
+
+  const products = Object.keys(map).sort((a, b) => {
+    const ia = PRODUCT_ORDER.indexOf(a);
+    const ib = PRODUCT_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  return products.map((p) => {
+    const nozzles = Object.values(map[p].nozzles);
+    const totalSales = Math.round(nozzles.reduce((s, n) => s + n.sales, 0) * 1000) / 1000;
+    const testing = Number(data.testingByProduct?.[p] || 0);
+    const netSales = Math.round((totalSales - testing) * 1000) / 1000;
+    const rate =
+      map[p].litersTotal > 0
+        ? Math.round((map[p].weightedRateNum / map[p].litersTotal) * 100) / 100
+        : 0;
+    const amount = Math.round(netSales * rate * 100) / 100;
+    return { product: p, nozzles, totalSales, testing, netSales, rate, amount };
+  });
+}
+
+function fmtNum(n: number, decimals = 2) {
+  return n.toLocaleString('en-IN', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+function fmtInt(n: number) {
+  return n.toLocaleString('en-IN');
+}
+
+// ============================================================
+// React preview (mirrors the printable HTML)
+// ============================================================
+export function SalesReportPrintable({ data }: { data: SalesReportData }) {
+  const products = aggregate(data);
+  const opening = Number(data.openingBalance || 0);
+  const productIncomeTotal = products.reduce((s, p) => s + p.amount, 0);
+
+  // Other incomes (Lube etc.)
+  const otherIncomes: { label: string; amount: number }[] = [];
+  for (const e of data.entries) {
+    for (const inc of e.incomes || []) {
+      otherIncomes.push({
+        label: inc.description || inc.type,
+        amount: Number(inc.amount) || 0,
+      });
+    }
+  }
+  const otherIncomeTotal = otherIncomes.reduce((s, x) => s + x.amount, 0);
+
+  // Expenses
+  const expenses: { label: string; amount: number }[] = [];
+  for (const e of data.entries) {
+    for (const ex of e.expenses || []) {
+      expenses.push({
+        label: ex.description || ex.type,
+        amount: Number(ex.amount) || 0,
+      });
+    }
+  }
+  const expenseTotal = expenses.reduce((s, x) => s + x.amount, 0);
+
+  const leftTotal = opening + productIncomeTotal + otherIncomeTotal;
+  const rightOps = data.bankDeposited + data.totals.upi + expenseTotal;
+  const cashInHand = leftTotal - rightOps;
+  const saleCash = data.totals.cash;
+  const difference = cashInHand - saleCash;
 
   return (
-    <div className="bg-white text-black p-6 print:p-4" style={{ fontFamily: 'Arial, sans-serif' }}>
-      <div className="text-center border-b-2 border-black pb-3 mb-4">
-        <h1 className="text-2xl font-bold">{businessName || 'Daily Sales Report'}</h1>
-        <p className="text-sm">
-          Report Date: <b>{format(parseISO(reportDate), 'dd MMM yyyy')}</b>
-        </p>
+    <div
+      className="bg-white text-black p-6 print:p-4"
+      style={{ fontFamily: 'Arial, sans-serif', fontSize: 12 }}
+    >
+      {/* Header */}
+      <div className="text-center mb-4">
+        <h1 className="text-xl font-bold uppercase tracking-wide">
+          {data.businessName || 'Daily Sales Report'}
+        </h1>
+        <div className="text-sm font-semibold mt-1">
+          {format(parseISO(data.reportDate), 'dd MMM yyyy')}
+        </div>
       </div>
 
-      {/* Per-product summary */}
-      <h2 className="text-base font-bold mt-2 mb-1">Fuel Sales Summary</h2>
-      <table className="w-full text-xs border border-black border-collapse mb-4">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="border border-black px-2 py-1 text-left">Product</th>
-            <th className="border border-black px-2 py-1 text-right">Liters</th>
-            <th className="border border-black px-2 py-1 text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(byProduct).map(([p, v]) => (
-            <tr key={p}>
-              <td className="border border-black px-2 py-1">{PRODUCT_LABEL[p] || p}</td>
-              <td className="border border-black px-2 py-1 text-right">{formatLiters(v.liters)}</td>
-              <td className="border border-black px-2 py-1 text-right">{formatRupees(v.gross)}</td>
-            </tr>
-          ))}
-          <tr className="font-bold bg-gray-100">
-            <td className="border border-black px-2 py-1">Total</td>
-            <td className="border border-black px-2 py-1 text-right">{formatLiters(totals.liters)}</td>
-            <td className="border border-black px-2 py-1 text-right">{formatRupees(totals.gross)}</td>
-          </tr>
-        </tbody>
-      </table>
+      {/* Product blocks */}
+      {products.map((p) => (
+        <ProductBlock key={p.product} agg={p} />
+      ))}
 
-      {/* Per-entry detail */}
-      <h2 className="text-base font-bold mt-2 mb-1">Shift Entries</h2>
-      <table className="w-full text-[11px] border border-black border-collapse mb-4">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="border border-black px-2 py-1 text-left">Nozzle Man</th>
-            <th className="border border-black px-2 py-1 text-left">Nozzle</th>
-            <th className="border border-black px-2 py-1 text-left">Product</th>
-            <th className="border border-black px-2 py-1 text-right">Open</th>
-            <th className="border border-black px-2 py-1 text-right">Close</th>
-            <th className="border border-black px-2 py-1 text-right">Liters</th>
-            <th className="border border-black px-2 py-1 text-right">Rate</th>
-            <th className="border border-black px-2 py-1 text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.id}>
-              <td className="border border-black px-2 py-1">{e.nozzle_man_name}</td>
-              <td className="border border-black px-2 py-1">{e.nozzle_label}</td>
-              <td className="border border-black px-2 py-1">{PRODUCT_LABEL[e.product] || e.product}</td>
-              <td className="border border-black px-2 py-1 text-right">{e.opening_reading}</td>
-              <td className="border border-black px-2 py-1 text-right">{e.closing_reading}</td>
-              <td className="border border-black px-2 py-1 text-right">{formatLiters(e.liters_sold)}</td>
-              <td className="border border-black px-2 py-1 text-right">{formatRupees(e.rate)}</td>
-              <td className="border border-black px-2 py-1 text-right">{formatRupees(e.gross_amount)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Two-column ledger */}
+      <div className="mt-6 border-t-2 border-black pt-3">
+        <div className="grid grid-cols-2 gap-6">
+          {/* LEFT: Incomes */}
+          <div>
+            <LedgerRow amount={opening} label="Opening Balance" />
+            {products.map((p) => (
+              <LedgerRow
+                key={p.product}
+                amount={p.amount}
+                label={
+                  <>
+                    {p.product} <b>{fmtNum(p.netSales, p.product === 'POWER' || p.product === 'HSD' ? 3 : 2)}</b> x <b>@{fmtNum(p.rate)}</b>
+                  </>
+                }
+              />
+            ))}
+            {otherIncomes.map((i, idx) => (
+              <LedgerRow key={`oi-${idx}`} amount={i.amount} label={i.label} />
+            ))}
+            <LedgerRow amount={leftTotal} label="" bold />
 
-      {/* Cash denomination */}
-      <h2 className="text-base font-bold mt-2 mb-1">Cash Denomination Summary</h2>
-      <table className="w-full text-xs border border-black border-collapse mb-4">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="border border-black px-2 py-1 text-left">Denomination</th>
-            <th className="border border-black px-2 py-1 text-right">Count</th>
-            <th className="border border-black px-2 py-1 text-right">Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          {([
-            ['Rs. 500', totals.d500, 500],
-            ['Rs. 200', totals.d200, 200],
-            ['Rs. 100', totals.d100, 100],
-            ['Rs. 50', totals.d50, 50],
-            ['Rs. 20', totals.d20, 20],
-            ['Rs. 10', totals.d10, 10],
-          ] as const).map(([label, count, note]) => (
-            <tr key={label}>
-              <td className="border border-black px-2 py-1">{label}</td>
-              <td className="border border-black px-2 py-1 text-right">{count}</td>
-              <td className="border border-black px-2 py-1 text-right">{formatRupees(count * note)}</td>
-            </tr>
-          ))}
-          <tr>
-            <td className="border border-black px-2 py-1">Coins</td>
-            <td className="border border-black px-2 py-1 text-right">—</td>
-            <td className="border border-black px-2 py-1 text-right">{formatRupees(totals.coins)}</td>
-          </tr>
-          <tr className="font-bold bg-gray-100">
-            <td className="border border-black px-2 py-1" colSpan={2}>Total Cash</td>
-            <td className="border border-black px-2 py-1 text-right">{formatRupees(totals.cash)}</td>
-          </tr>
-        </tbody>
-      </table>
+            {/* Denomination */}
+            <div className="mt-6">
+              <div className="font-bold mb-1 text-sm">Cash Denomination</div>
+              <table className="w-full text-xs border border-black border-collapse">
+                <tbody>
+                  {[
+                    ['Rs. 500', data.totals.d500, 500],
+                    ['Rs. 200', data.totals.d200, 200],
+                    ['Rs. 100', data.totals.d100, 100],
+                    ['Rs. 50', data.totals.d50, 50],
+                    ['Rs. 20', data.totals.d20, 20],
+                    ['Rs. 10', data.totals.d10, 10],
+                  ].map(([label, count, note]) => (
+                    <tr key={label as string}>
+                      <td className="border border-black px-2 py-0.5">{label}</td>
+                      <td className="border border-black px-2 py-0.5 text-right">{count as number}</td>
+                      <td className="border border-black px-2 py-0.5 text-right">
+                        {fmtInt((count as number) * (note as number))}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td className="border border-black px-2 py-0.5">Coins</td>
+                    <td className="border border-black px-2 py-0.5 text-right">—</td>
+                    <td className="border border-black px-2 py-0.5 text-right">{fmtInt(data.totals.coins)}</td>
+                  </tr>
+                  <tr className="font-bold bg-gray-100">
+                    <td className="border border-black px-2 py-0.5" colSpan={2}>Total Cash</td>
+                    <td className="border border-black px-2 py-0.5 text-right">{fmtInt(saleCash)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-      {/* Final settlement */}
-      <h2 className="text-base font-bold mt-2 mb-1">Settlement</h2>
-      <table className="w-full text-xs border border-black border-collapse">
-        <tbody>
-          <Row label="Gross Sales" value={formatRupees(totals.gross)} />
-          <Row label="Additional Income" value={formatRupees(totals.income)} />
-          <Row label="Total Deductions" value={`- ${formatRupees(totals.expenses)}`} />
-          <Row label="Net Payable" value={formatRupees(totals.net)} bold />
-          <Row label="Total Cash Collected" value={formatRupees(totals.cash)} />
-          <Row label="Total UPI Collected" value={formatRupees(totals.upi)} />
-          <Row label="Total Collected" value={formatRupees(totals.collected)} bold />
-          <Row label="Bank Deposited Today" value={formatRupees(bankDeposited)} />
-          <Row label="Net Cash in Hand (carries forward)" value={formatRupees(netCashInHand)} bold accent />
-        </tbody>
-      </table>
+          {/* RIGHT: Expenses */}
+          <div>
+            <LedgerRow amount={data.bankDeposited} label="Cash Deposit (Bank)" />
+            <LedgerRow amount={data.totals.upi} label="UPI / Phonepe (Combined)" />
+            {expenses.map((x, idx) => (
+              <LedgerRow key={`ex-${idx}`} amount={x.amount} label={x.label} />
+            ))}
+            <LedgerRow amount={rightOps} label="" bold />
 
+            <LedgerRow amount={cashInHand} label="Cash In Hand" />
+            <LedgerRow amount={leftTotal} label="" bold />
+
+            <div className="mt-4 border-t border-black pt-2">
+              <LedgerRow amount={saleCash} label="Sale Cash" />
+              <LedgerRow amount={difference} label="Difference" />
+              <LedgerRow amount={cashInHand} label="" bold />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Optional Dip section */}
       {data.dipReadings && data.dipReadings.length > 0 && (
-        <>
-          <h2 className="text-base font-bold mt-4 mb-1">Tank Dip Readings</h2>
-          <table className="w-full text-xs border border-black border-collapse mb-4">
+        <div className="mt-6">
+          <div className="font-bold text-sm mb-1">Tank Dip Readings</div>
+          <table className="w-full text-xs border border-black border-collapse">
             <thead>
               <tr className="bg-gray-200">
                 <th className="border border-black px-2 py-1 text-left">Tank</th>
                 <th className="border border-black px-2 py-1 text-left">Fuel</th>
                 <th className="border border-black px-2 py-1 text-right">Dip (cm)</th>
                 <th className="border border-black px-2 py-1 text-right">Dip Liters</th>
-                <th className="border border-black px-2 py-1 text-right">System Liters</th>
+                <th className="border border-black px-2 py-1 text-right">System</th>
                 <th className="border border-black px-2 py-1 text-right">Variance</th>
               </tr>
             </thead>
@@ -196,7 +274,7 @@ export function SalesReportPrintable({ data }: { data: SalesReportData }) {
               ))}
             </tbody>
           </table>
-        </>
+        </div>
       )}
 
       <div className="mt-6 text-[10px] text-gray-600 text-center">
@@ -206,169 +284,262 @@ export function SalesReportPrintable({ data }: { data: SalesReportData }) {
   );
 }
 
-function Row({ label, value, bold, accent }: { label: string; value: string; bold?: boolean; accent?: boolean }) {
+function ProductBlock({ agg }: { agg: ProductAgg }) {
+  const dec = agg.product === 'POWER' || agg.product === 'HSD' ? 3 : 2;
   return (
-    <tr className={accent ? 'bg-yellow-100' : ''}>
-      <td className={`border border-black px-2 py-1 ${bold ? 'font-bold' : ''}`}>{label}</td>
-      <td className={`border border-black px-2 py-1 text-right ${bold ? 'font-bold' : ''}`}>{value}</td>
-    </tr>
+    <div className="border-t border-black pt-2 mb-4">
+      <div className="text-center font-bold text-base mb-2">{PRODUCT_LABEL[agg.product] || agg.product}</div>
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr>
+            <th className="text-left w-40"></th>
+            {agg.nozzles.map((n) => (
+              <th key={n.label} className="text-right px-2 py-0.5 font-semibold">{n.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="py-0.5">Opening Reading</td>
+            {agg.nozzles.map((n) => (
+              <td key={n.label} className="text-right px-2 py-0.5">{fmtNum(n.opening, dec)}</td>
+            ))}
+          </tr>
+          <tr>
+            <td className="py-0.5">Closing Reading</td>
+            {agg.nozzles.map((n) => (
+              <td key={n.label} className="text-right px-2 py-0.5 border-b border-black">{fmtNum(n.closing, dec)}</td>
+            ))}
+          </tr>
+          <tr>
+            <td className="py-0.5 text-right font-bold pr-2">SALES</td>
+            {agg.nozzles.map((n) => (
+              <td key={n.label} className="text-right px-2 py-0.5 font-semibold">{fmtNum(n.sales, dec)}</td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+      <div className="mt-2 flex items-center gap-3 text-xs">
+        <span className="font-semibold">TOTAL SALES =</span>
+        <span>{fmtNum(agg.totalSales, dec)}</span>
+        <span className="text-gray-700">-{fmtNum(agg.testing, dec)} Testing =</span>
+        <span className="font-bold">{fmtNum(agg.netSales, dec)}</span>
+      </div>
+    </div>
   );
 }
 
-/**
- * Generate a fully self-contained HTML string the user can download
- * and open / print offline.
- */
-export function buildPrintableHtml(data: SalesReportData): string {
-  const { reportDate, entries, totals, bankDeposited, netCashInHand, businessName } = data;
-
-  const byProduct = entries.reduce<Record<string, { liters: number; gross: number }>>(
-    (acc, e) => {
-      const p = e.product || 'OTHER';
-      if (!acc[p]) acc[p] = { liters: 0, gross: 0 };
-      acc[p].liters += Number(e.liters_sold) || 0;
-      acc[p].gross += Number(e.gross_amount) || 0;
-      return acc;
-    },
-    {}
+function LedgerRow({
+  amount,
+  label,
+  bold,
+}: {
+  amount: number;
+  label: React.ReactNode;
+  bold?: boolean;
+}) {
+  return (
+    <div className={`flex items-baseline gap-3 py-0.5 ${bold ? 'border-t border-black mt-1 pt-1 font-bold' : ''}`}>
+      <div className="w-28 text-right tabular-nums border-b border-gray-400 pb-0.5">
+        {fmtInt(Math.round(amount))}
+      </div>
+      <div className="flex-1 text-xs">{label}</div>
+    </div>
   );
+}
 
-  const fmtR = (n: number) => formatRupees(n);
-  const fmtL = (n: number) => formatLiters(n);
+// ============================================================
+// Standalone printable HTML (offline download / window print)
+// ============================================================
+export function buildPrintableHtml(data: SalesReportData): string {
+  const products = aggregate(data);
+  const opening = Number(data.openingBalance || 0);
+  const productIncomeTotal = products.reduce((s, p) => s + p.amount, 0);
 
-  const productRows = Object.entries(byProduct)
-    .map(
-      ([p, v]) => `<tr>
-        <td>${PRODUCT_LABEL[p] || p}</td>
-        <td class="r">${fmtL(v.liters)}</td>
-        <td class="r">${fmtR(v.gross)}</td>
-      </tr>`
-    )
+  const otherIncomes: { label: string; amount: number }[] = [];
+  for (const e of data.entries) for (const inc of e.incomes || [])
+    otherIncomes.push({ label: inc.description || inc.type, amount: Number(inc.amount) || 0 });
+  const otherIncomeTotal = otherIncomes.reduce((s, x) => s + x.amount, 0);
+
+  const expenses: { label: string; amount: number }[] = [];
+  for (const e of data.entries) for (const ex of e.expenses || [])
+    expenses.push({ label: ex.description || ex.type, amount: Number(ex.amount) || 0 });
+  const expenseTotal = expenses.reduce((s, x) => s + x.amount, 0);
+
+  const leftTotal = opening + productIncomeTotal + otherIncomeTotal;
+  const rightOps = data.bankDeposited + data.totals.upi + expenseTotal;
+  const cashInHand = leftTotal - rightOps;
+  const saleCash = data.totals.cash;
+  const difference = cashInHand - saleCash;
+
+  const productBlocks = products
+    .map((p) => {
+      const dec = p.product === 'POWER' || p.product === 'HSD' ? 3 : 2;
+      const headerCols = p.nozzles
+        .map((n) => `<th class="r">${escapeHtml(n.label)}</th>`)
+        .join('');
+      const openRow = p.nozzles
+        .map((n) => `<td class="r">${fmtNum(n.opening, dec)}</td>`)
+        .join('');
+      const closeRow = p.nozzles
+        .map((n) => `<td class="r bb">${fmtNum(n.closing, dec)}</td>`)
+        .join('');
+      const salesRow = p.nozzles
+        .map((n) => `<td class="r b">${fmtNum(n.sales, dec)}</td>`)
+        .join('');
+      return `
+  <div class="prod">
+    <div class="prod-name">${escapeHtml(PRODUCT_LABEL[p.product] || p.product)}</div>
+    <table class="grid">
+      <thead><tr><th></th>${headerCols}</tr></thead>
+      <tbody>
+        <tr><td>Opening Reading</td>${openRow}</tr>
+        <tr><td>Closing Reading</td>${closeRow}</tr>
+        <tr><td class="b ralabel">SALES</td>${salesRow}</tr>
+      </tbody>
+    </table>
+    <div class="ts">
+      <b>TOTAL SALES =</b> ${fmtNum(p.totalSales, dec)}
+      &nbsp;&nbsp;-${fmtNum(p.testing, dec)} Testing =
+      <b>${fmtNum(p.netSales, dec)}</b>
+    </div>
+  </div>`;
+    })
     .join('');
 
-  const entryRows = entries
-    .map(
-      (e) => `<tr>
-        <td>${escapeHtml(e.nozzle_man_name)}</td>
-        <td>${escapeHtml(e.nozzle_label)}</td>
-        <td>${PRODUCT_LABEL[e.product] || e.product}</td>
-        <td class="r">${e.opening_reading}</td>
-        <td class="r">${e.closing_reading}</td>
-        <td class="r">${fmtL(e.liters_sold)}</td>
-        <td class="r">${fmtR(e.rate)}</td>
-        <td class="r">${fmtR(e.gross_amount)}</td>
-      </tr>`
-    )
-    .join('');
+  const ledgerRow = (amount: number, label: string, bold = false) => `
+    <div class="lrow${bold ? ' lbold' : ''}">
+      <div class="lamt">${fmtInt(Math.round(amount))}</div>
+      <div class="llbl">${label}</div>
+    </div>`;
+
+  const leftRows =
+    ledgerRow(opening, 'Opening Balance') +
+    products
+      .map((p) => {
+        const dec = p.product === 'POWER' || p.product === 'HSD' ? 3 : 2;
+        return ledgerRow(
+          p.amount,
+          `${escapeHtml(p.product)} <b>${fmtNum(p.netSales, dec)}</b> x <b>@${fmtNum(p.rate)}</b>`
+        );
+      })
+      .join('') +
+    otherIncomes.map((i) => ledgerRow(i.amount, escapeHtml(i.label))).join('') +
+    ledgerRow(leftTotal, '', true);
+
+  const rightRows =
+    ledgerRow(data.bankDeposited, 'Cash Deposit (Bank)') +
+    ledgerRow(data.totals.upi, 'UPI / Phonepe (Combined)') +
+    expenses.map((x) => ledgerRow(x.amount, escapeHtml(x.label))).join('') +
+    ledgerRow(rightOps, '', true) +
+    ledgerRow(cashInHand, 'Cash In Hand') +
+    ledgerRow(leftTotal, '', true) +
+    `<div class="lsep"></div>` +
+    ledgerRow(saleCash, 'Sale Cash') +
+    ledgerRow(difference, 'Difference') +
+    ledgerRow(cashInHand, '', true);
 
   const denomRows = [
-    ['Rs. 500', totals.d500, 500],
-    ['Rs. 200', totals.d200, 200],
-    ['Rs. 100', totals.d100, 100],
-    ['Rs. 50', totals.d50, 50],
-    ['Rs. 20', totals.d20, 20],
-    ['Rs. 10', totals.d10, 10],
+    ['Rs. 500', data.totals.d500, 500],
+    ['Rs. 200', data.totals.d200, 200],
+    ['Rs. 100', data.totals.d100, 100],
+    ['Rs. 50', data.totals.d50, 50],
+    ['Rs. 20', data.totals.d20, 20],
+    ['Rs. 10', data.totals.d10, 10],
   ]
     .map(
       ([label, count, note]) => `<tr>
         <td>${label}</td>
-        <td class="r">${count}</td>
-        <td class="r">${fmtR((count as number) * (note as number))}</td>
+        <td class="r">${count as number}</td>
+        <td class="r">${fmtInt((count as number) * (note as number))}</td>
       </tr>`
     )
     .join('');
 
+  const dipBlock =
+    data.dipReadings && data.dipReadings.length > 0
+      ? `<div class="dip">
+        <div class="prod-name" style="text-align:left;border:none;">Tank Dip Readings</div>
+        <table class="bordered">
+          <thead><tr><th>Tank</th><th>Fuel</th><th class="r">Dip (cm)</th><th class="r">Dip Liters</th><th class="r">System</th><th class="r">Variance</th></tr></thead>
+          <tbody>
+            ${data.dipReadings
+              .map(
+                (d) => `<tr>
+              <td>${escapeHtml(d.tank_name)}</td>
+              <td>${escapeHtml(d.fuel_type)}</td>
+              <td class="r">${d.dip_reading}</td>
+              <td class="r">${d.dip_liters != null ? formatLiters(d.dip_liters) : '—'}</td>
+              <td class="r">${d.system_liters != null ? formatLiters(d.system_liters) : '—'}</td>
+              <td class="r">${d.variance != null ? formatLiters(d.variance) : '—'}</td>
+            </tr>`
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>`
+      : '';
+
   return `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8" />
-<title>Daily Sales Report – ${format(parseISO(reportDate), 'dd MMM yyyy')}</title>
+<title>${escapeHtml(data.businessName || 'Daily Sales Report')} – ${format(parseISO(data.reportDate), 'dd MMM yyyy')}</title>
 <style>
-  body { font-family: Arial, sans-serif; color: #000; padding: 24px; }
-  h1 { text-align: center; margin: 0 0 4px; }
-  h2 { font-size: 14px; margin: 16px 0 6px; }
-  .head { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th, td { border: 1px solid #000; padding: 4px 6px; }
-  th { background: #e5e5e5; text-align: left; }
+  @page { size: A4; margin: 14mm; }
+  body { font-family: Arial, sans-serif; color: #000; font-size: 12px; margin: 0; padding: 18px; }
+  h1 { text-align: center; margin: 0; font-size: 18px; letter-spacing: .5px; text-transform: uppercase; }
+  .date { text-align: center; font-weight: 600; margin: 4px 0 14px; }
+  .prod { border-top: 1px solid #000; padding-top: 6px; margin-bottom: 14px; }
+  .prod-name { text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 6px; }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.grid th, table.grid td { padding: 2px 6px; }
+  table.grid th { text-align: right; font-weight: 600; }
+  table.grid th:first-child, table.grid td:first-child { text-align: left; width: 160px; }
   .r { text-align: right; }
-  .bold td { font-weight: bold; background: #f4f4f4; }
-  .accent td { background: #fff3a8; font-weight: bold; }
+  .b { font-weight: bold; }
+  .bb { border-bottom: 1px solid #000; }
+  .ralabel { text-align: right; padding-right: 8px; }
+  .ts { margin-top: 6px; font-size: 12px; }
+  .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; border-top: 2px solid #000; padding-top: 10px; margin-top: 12px; }
+  .lrow { display: flex; align-items: baseline; gap: 12px; padding: 1px 0; }
+  .lamt { width: 110px; text-align: right; border-bottom: 1px solid #888; padding-bottom: 1px; font-variant-numeric: tabular-nums; }
+  .llbl { flex: 1; font-size: 12px; }
+  .lbold { border-top: 1px solid #000; margin-top: 3px; padding-top: 3px; font-weight: bold; }
+  .lbold .lamt { border-bottom: none; }
+  .lsep { height: 8px; border-top: 1px solid #000; margin-top: 6px; }
+  .denom { margin-top: 18px; }
+  .denom .ttl { font-weight: bold; font-size: 12px; margin-bottom: 4px; }
+  table.bordered { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.bordered th, table.bordered td { border: 1px solid #000; padding: 3px 6px; }
+  table.bordered th { background: #eee; text-align: left; }
+  .dip { margin-top: 18px; }
   .meta { text-align: center; font-size: 10px; color: #555; margin-top: 18px; }
   @media print { body { padding: 0; } }
 </style>
 </head><body>
-  <div class="head">
-    <h1>${escapeHtml(businessName || 'Daily Sales Report')}</h1>
-    <div>Report Date: <b>${format(parseISO(reportDate), 'dd MMM yyyy')}</b></div>
+  <h1>${escapeHtml(data.businessName || 'Daily Sales Report')}</h1>
+  <div class="date">${format(parseISO(data.reportDate), 'dd MMM yyyy')}</div>
+
+  ${productBlocks}
+
+  <div class="ledger">
+    <div>
+      ${leftRows}
+      <div class="denom">
+        <div class="ttl">Cash Denomination</div>
+        <table class="bordered">
+          <tbody>
+            ${denomRows}
+            <tr><td>Coins</td><td class="r">—</td><td class="r">${fmtInt(data.totals.coins)}</td></tr>
+            <tr style="font-weight:bold;background:#f0f0f0;"><td colspan="2">Total Cash</td><td class="r">${fmtInt(saleCash)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>${rightRows}</div>
   </div>
 
-  <h2>Fuel Sales Summary</h2>
-  <table>
-    <thead><tr><th>Product</th><th class="r">Liters</th><th class="r">Amount</th></tr></thead>
-    <tbody>
-      ${productRows}
-      <tr class="bold"><td>Total</td><td class="r">${fmtL(totals.liters)}</td><td class="r">${fmtR(totals.gross)}</td></tr>
-    </tbody>
-  </table>
-
-  <h2>Shift Entries</h2>
-  <table>
-    <thead><tr>
-      <th>Nozzle Man</th><th>Nozzle</th><th>Product</th>
-      <th class="r">Open</th><th class="r">Close</th><th class="r">Liters</th>
-      <th class="r">Rate</th><th class="r">Amount</th>
-    </tr></thead>
-    <tbody>${entryRows}</tbody>
-  </table>
-
-  <h2>Cash Denomination Summary</h2>
-  <table>
-    <thead><tr><th>Denomination</th><th class="r">Count</th><th class="r">Value</th></tr></thead>
-    <tbody>
-      ${denomRows}
-      <tr><td>Coins</td><td class="r">—</td><td class="r">${fmtR(totals.coins)}</td></tr>
-      <tr class="bold"><td colspan="2">Total Cash</td><td class="r">${fmtR(totals.cash)}</td></tr>
-    </tbody>
-  </table>
-
-  <h2>Settlement</h2>
-  <table>
-    <tbody>
-      <tr><td>Gross Sales</td><td class="r">${fmtR(totals.gross)}</td></tr>
-      <tr><td>Additional Income</td><td class="r">${fmtR(totals.income)}</td></tr>
-      <tr><td>Total Deductions</td><td class="r">- ${fmtR(totals.expenses)}</td></tr>
-      <tr class="bold"><td>Net Payable</td><td class="r">${fmtR(totals.net)}</td></tr>
-      <tr><td>Total Cash Collected</td><td class="r">${fmtR(totals.cash)}</td></tr>
-      <tr><td>Total UPI Collected</td><td class="r">${fmtR(totals.upi)}</td></tr>
-      <tr class="bold"><td>Total Collected</td><td class="r">${fmtR(totals.collected)}</td></tr>
-      <tr><td>Bank Deposited Today</td><td class="r">${fmtR(bankDeposited)}</td></tr>
-      <tr class="accent"><td>Net Cash in Hand (carries forward)</td><td class="r">${fmtR(netCashInHand)}</td></tr>
-    </tbody>
-  </table>
-
-  ${
-    data.dipReadings && data.dipReadings.length > 0
-      ? `<h2>Tank Dip Readings</h2>
-  <table>
-    <thead><tr><th>Tank</th><th>Fuel</th><th class="r">Dip (cm)</th><th class="r">Dip Liters</th><th class="r">System Liters</th><th class="r">Variance</th></tr></thead>
-    <tbody>
-      ${data.dipReadings
-        .map(
-          (d) => `<tr>
-        <td>${escapeHtml(d.tank_name)}</td>
-        <td>${escapeHtml(d.fuel_type)}</td>
-        <td class="r">${d.dip_reading}</td>
-        <td class="r">${d.dip_liters != null ? fmtL(d.dip_liters) : '—'}</td>
-        <td class="r">${d.system_liters != null ? fmtL(d.system_liters) : '—'}</td>
-        <td class="r">${d.variance != null ? fmtL(d.variance) : '—'}</td>
-      </tr>`
-        )
-        .join('')}
-    </tbody>
-  </table>`
-      : ''
-  }
-
+  ${dipBlock}
 
   <div class="meta">Generated on ${format(new Date(), 'dd MMM yyyy, HH:mm')}</div>
   <script>setTimeout(function(){ try { window.print(); } catch(e) {} }, 300);</script>
