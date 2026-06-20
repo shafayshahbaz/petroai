@@ -475,7 +475,26 @@ export default function DailySalesReport() {
         t.d20 += +d.d20 || 0; t.d10 += +d.d10 || 0;
         t.coins += +d.coins || 0;
       }
-      const bank = deposits.reduce((s, d) => s + Number(d.amount || 0), 0);
+      const depRows: { amount: number; label: string }[] = [];
+      const trRows: { amount: number; label: string }[] = [];
+      for (const d of deposits) {
+        const amt = Number(d.amount || 0);
+        if (d.transaction_type === 'cash_transfer') {
+          const lbl = d.notes?.trim() || d.reference_number || 'Cash to Bank';
+          trRows.push({ amount: amt, label: `Cash to Bank — ${lbl}` });
+        } else {
+          const lbl = d.bank_name?.trim() || 'Bank Deposit';
+          depRows.push({ amount: amt, label: `Bank Deposit (${lbl})` });
+        }
+      }
+      const bank = depRows.reduce((s, x) => s + x.amount, 0);
+      const trTotal = trRows.reduce((s, x) => s + x.amount, 0);
+      const tByProd: Record<string, number> = {};
+      for (const e of reportEntries) {
+        const tt = (e.denominations as any)?._testing as { product: string; liters: number }[] | undefined;
+        if (!tt) continue;
+        for (const x of tt) tByProd[x.product] = (tByProd[x.product] || 0) + (Number(x.liters) || 0);
+      }
       let dipReadings: DipReportRow[] | undefined;
       if (dipRows.length > 0) {
         const tks = await listTanks();
@@ -497,9 +516,13 @@ export default function DailySalesReport() {
         entries: reportEntries,
         totals: t,
         bankDeposited: bank,
-        netCashInHand: t.collected - bank,
+        bankDeposits: depRows,
+        cashTransfers: trRows,
+        netCashInHand: t.collected - bank - trTotal,
         businessName: businessProfile.companyName || undefined,
         dipReadings,
+        allNozzles: allNozzlesWithLast,
+        testingByProduct: tByProd,
       });
       setReportViewOpen(true);
     } catch (e: any) {
