@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Phone, Edit2, Save, Trash2, WifiOff } from 'lucide-react';
+import { Plus, Phone, Edit2, Save, Trash2, WifiOff, FileText } from 'lucide-react';
+import { DebtorStatementDialog } from '@/components/ledger/DebtorStatementDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
