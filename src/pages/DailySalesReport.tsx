@@ -198,9 +198,10 @@ export default function DailySalesReport() {
       totals,
       bankDeposited: bankToday,
       netCashInHand,
+      businessName: businessProfile.companyName || undefined,
       dipReadings: dipComputed.length > 0 ? dipComputed : undefined,
     };
-  }, [reportDate, selectedEntries, totals, bankToday, netCashInHand, dipComputed]);
+  }, [reportDate, selectedEntries, totals, bankToday, netCashInHand, dipComputed, businessProfile.companyName]);
 
   const handleDownload = (data: SalesReportData | null) => {
     if (!data) return;
