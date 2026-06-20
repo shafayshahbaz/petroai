@@ -98,6 +98,25 @@ export async function createPersonEntry(input: PersonEntryInput, clientId: strin
   return data as unknown as PersonEntryRecord;
 }
 
+export async function updatePersonEntry(id: string, patch: Partial<PersonEntryInput>) {
+  const { data, error } = await supabase
+    .from('person_entries' as any)
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as unknown as PersonEntryRecord;
+}
+
+export async function deletePersonEntry(id: string) {
+  const { error } = await supabase
+    .from('person_entries' as any)
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function listPersonEntries(fromDate?: string, toDate?: string): Promise<PersonEntryRecord[]> {
   let q = supabase.from('person_entries' as any).select('*').order('entry_date', { ascending: false });
   if (fromDate) q = q.gte('entry_date', fromDate);
