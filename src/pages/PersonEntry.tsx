@@ -111,6 +111,7 @@ export default function PersonEntry() {
 
   const [expenses, setExpenses] = useState<PersonEntryExpense[]>([]);
   const [incomes, setIncomes] = useState<PersonEntryIncome[]>([]);
+  const [testing, setTesting] = useState<{ id: string; product: 'MS' | 'HSD' | 'POWER'; liters: string }[]>([]);
 
   const [d500, setD500] = useState<string>('');
   const [d200, setD200] = useState<string>('');
