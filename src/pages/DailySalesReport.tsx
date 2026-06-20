@@ -545,6 +545,56 @@ export default function DailySalesReport() {
     }
   };
 
+  // ===== Entry edit / delete =====
+  const openEdit = (e: PersonEntryRecord) => {
+    setEditEntry(e);
+    setEditClosing(String(e.closing_reading ?? ''));
+    setEditRate(String(e.rate ?? ''));
+    setEditCash(String(e.total_cash ?? ''));
+    setEditUpi(String(e.upi_received ?? ''));
+  };
+
+  const saveEdit = async () => {
+    if (!editEntry) return;
+    const closing = Number(editClosing) || 0;
+    const rate = Number(editRate) || 0;
+    const cash = Number(editCash) || 0;
+    const upi = Number(editUpi) || 0;
+    const liters = Math.max(0, closing - Number(editEntry.opening_reading));
+    const gross = Math.round(liters * rate * 100) / 100;
+    const totalCollected = cash + upi;
+    const net = gross + Number(editEntry.total_income || 0) - Number(editEntry.total_expenses || 0);
+    try {
+      await updatePersonEntry(editEntry.id, {
+        closing_reading: closing,
+        rate,
+        liters_sold: liters,
+        gross_amount: gross,
+        total_cash: cash,
+        upi_received: upi,
+        total_collected: totalCollected,
+        difference: totalCollected - net,
+        net_payable: net,
+      } as any);
+      toast({ title: 'Entry updated' });
+      setEditEntry(null);
+      await refresh();
+    } catch (err: any) {
+      toast({ title: 'Update failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteEntry = async (e: PersonEntryRecord) => {
+    if (!window.confirm(`Delete ${e.nozzle_man_name}'s entry (${e.nozzle_label})?`)) return;
+    try {
+      await deletePersonEntry(e.id);
+      toast({ title: 'Entry deleted' });
+      await refresh();
+    } catch (err: any) {
+      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -553,38 +603,40 @@ export default function DailySalesReport() {
     );
   }
 
-  const renderRow = (e: PersonEntryRecord) => {
+  const renderRow = (e: PersonEntryRecord, opts?: { readonly?: boolean }) => {
     const isChecked = selected.has(e.id);
     return (
       <div
         key={e.id}
         className={cn(
-          'rounded-lg border p-3 flex gap-3 items-start',
+          'rounded-lg border p-3 flex gap-3 items-center',
           isChecked ? 'border-primary bg-primary/5' : 'bg-card'
         )}
       >
-        <div className="pt-0.5">
+        {!opts?.readonly && (
           <Checkbox checked={isChecked} onCheckedChange={() => toggle(e.id)} />
-        </div>
+        )}
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-semibold">{e.nozzle_man_name}</span>
-            <Badge variant="secondary" className="text-xs">
-              {e.nozzle_label} · {PRODUCT_LABEL[e.product] || e.product}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {format(parseISO(e.entry_date), 'dd MMM yyyy')}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-semibold truncate">{e.nozzle_man_name}</span>
+            <span className="text-xs text-muted-foreground truncate">
+              · {e.nozzle_label} · {format(parseISO(e.entry_date), 'dd MMM')}
             </span>
             {e.report_inclusion_status === 'draft' && (
               <Badge variant="outline" className="text-xs border-blue-500 text-blue-600">Draft</Badge>
             )}
           </div>
-          <div className="mt-1 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 text-xs">
-            <span className="text-muted-foreground">Liters: <span className="text-foreground font-medium">{formatLiters(e.liters_sold)}</span></span>
-            <span className="text-muted-foreground">Gross: <span className="text-foreground font-medium">{formatRupees(e.gross_amount)}</span></span>
-            <span className="text-muted-foreground">Net: <span className="text-foreground font-medium">{formatRupees(e.net_payable)}</span></span>
-            <span className="text-muted-foreground">Collected: <span className="text-foreground font-medium">{formatRupees(e.total_collected)}</span></span>
+          <div className="text-base font-bold text-primary mt-0.5">
+            {formatRupees(e.gross_amount)}
           </div>
+        </div>
+        <div className="flex gap-1">
+          <Button size="icon" variant="ghost" onClick={() => openEdit(e)} aria-label="Edit">
+            <Edit3 className="w-4 h-4" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={() => handleDeleteEntry(e)} aria-label="Delete">
+            <Trash2 className="w-4 h-4 text-destructive" />
+          </Button>
         </div>
       </div>
     );
