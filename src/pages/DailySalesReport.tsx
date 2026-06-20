@@ -37,9 +37,13 @@ import {
   listReports,
   getEntriesForReport,
   unlockReport,
+  updatePersonEntry,
+  deletePersonEntry,
+  getLastClosingForNozzle,
   PersonEntryRecord,
   DailySalesReport as DailySalesReportRow,
 } from '@/services/personEntryService';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import {
   listBankDepositsForDate,
   createBankDeposit,
