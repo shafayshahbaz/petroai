@@ -1021,3 +1021,32 @@ function Stat({ label, value, bold }: { label: string; value: string; bold?: boo
     </div>
   );
 }
+
+function StepBar({ current }: { current: 1 | 2 | 3 | 4 }) {
+  const steps = ['Select', 'Bank', 'Dip', 'Confirm'];
+  return (
+    <div className="flex items-center gap-1 mb-2">
+      {steps.map((s, i) => {
+        const n = i + 1;
+        const active = n === current;
+        const done = n < current;
+        return (
+          <div key={s} className="flex items-center gap-1 flex-1">
+            <div
+              className={cn(
+                'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border',
+                active && 'bg-primary text-primary-foreground border-primary',
+                done && 'bg-primary/10 text-primary border-primary/30',
+                !active && !done && 'bg-muted text-muted-foreground border-transparent'
+              )}
+            >
+              <span className="font-bold">{n}</span>
+              <span>{s}</span>
+            </div>
+            {i < steps.length - 1 && <div className="h-px flex-1 bg-border" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
