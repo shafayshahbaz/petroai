@@ -33,6 +33,7 @@ import { recordPaymentReceipt } from '@/services/transactionService';
 import { cn } from '@/lib/utils';
 import { formatAmount } from '@/lib/format';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useSettingsStore } from '@/store/settings-store';
 import { AccountGroupCard } from '@/components/ledger/AccountGroupCard';
 import { AccountListItem } from '@/components/ledger/AccountListItem';
 import { LedgerTransactionTable, LedgerTransaction } from '@/components/ledger/LedgerTransactionTable';
