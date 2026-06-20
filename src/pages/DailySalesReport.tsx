@@ -193,15 +193,66 @@ export default function DailySalesReport() {
     return t;
   }, [selectedEntries]);
 
-  const [bankToday, setBankToday] = useState<number>(0);
+  const [bankDeposits, setBankDeposits] = useState<{ amount: number; label: string }[]>([]);
+  const [cashTransfers, setCashTransfers] = useState<{ amount: number; label: string }[]>([]);
   useEffect(() => {
-    if (!reportDate) { setBankToday(0); return; }
+    if (!reportDate) { setBankDeposits([]); setCashTransfers([]); return; }
     listBankDepositsForDate(reportDate)
-      .then((rows) => setBankToday(rows.reduce((s, r) => s + Number(r.amount || 0), 0)))
-      .catch(() => setBankToday(0));
+      .then((rows) => {
+        const dep: { amount: number; label: string }[] = [];
+        const tr: { amount: number; label: string }[] = [];
+        for (const r of rows) {
+          const amt = Number(r.amount || 0);
+          if (r.transaction_type === 'cash_transfer') {
+            const lbl = r.notes?.trim() || r.reference_number || 'Cash to Bank';
+            tr.push({ amount: amt, label: `Cash to Bank — ${lbl}` });
+          } else {
+            const lbl = r.bank_name?.trim() || 'Bank Deposit';
+            dep.push({ amount: amt, label: `Bank Deposit (${lbl})` });
+          }
+        }
+        setBankDeposits(dep);
+        setCashTransfers(tr);
+      })
+      .catch(() => { setBankDeposits([]); setCashTransfers([]); });
   }, [reportDate, wizard]);
 
-  const netCashInHand = totals.collected - bankToday;
+  const bankToday = bankDeposits.reduce((s, x) => s + x.amount, 0);
+  const cashTransferTotal = cashTransfers.reduce((s, x) => s + x.amount, 0);
+  const netCashInHand = totals.collected - bankToday - cashTransferTotal;
+
+  // Build last_closing for every cloud nozzle so the report can include
+  // nozzles with zero sales (opening = closing = last closing).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const list = await Promise.all(
+        cloudNozzles.map(async (n) => {
+          let last = 0;
+          try {
+            const r = await getLastClosingForNozzle(n.id);
+            if (r) last = Number(r.closing_reading) || 0;
+          } catch {}
+          return { label: n.label, fuel_type: n.fuel_type, last_closing: last };
+        })
+      );
+      if (alive) setAllNozzlesWithLast(list);
+    })();
+    return () => { alive = false; };
+  }, [cloudNozzles]);
+
+  // Aggregate testing liters per product from selected entries
+  const testingByProduct = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const e of selectedEntries) {
+      const t = (e.denominations as any)?._testing as { product: string; liters: number }[] | undefined;
+      if (!t) continue;
+      for (const r of t) {
+        out[r.product] = (out[r.product] || 0) + (Number(r.liters) || 0);
+      }
+    }
+    return out;
+  }, [selectedEntries]);
 
   const reportData: SalesReportData | null = useMemo(() => {
     if (!reportDate) return null;
@@ -210,11 +261,15 @@ export default function DailySalesReport() {
       entries: selectedEntries,
       totals,
       bankDeposited: bankToday,
+      bankDeposits,
+      cashTransfers,
       netCashInHand,
       businessName: businessProfile.companyName || undefined,
       dipReadings: dipComputed.length > 0 ? dipComputed : undefined,
+      allNozzles: allNozzlesWithLast,
+      testingByProduct,
     };
-  }, [reportDate, selectedEntries, totals, bankToday, netCashInHand, dipComputed, businessProfile.companyName]);
+  }, [reportDate, selectedEntries, totals, bankToday, bankDeposits, cashTransfers, netCashInHand, dipComputed, businessProfile.companyName, allNozzlesWithLast, testingByProduct]);
 
   const handleDownload = (data: SalesReportData | null) => {
     if (!data) return;
