@@ -14,6 +14,11 @@ export interface PersonEntryIncome {
   amount: number;
 }
 
+export interface PersonEntryTesting {
+  product: 'MS' | 'HSD' | 'POWER';
+  liters: number;
+}
+
 export interface PersonEntryDenominations {
   d500: number;
   d200: number;
@@ -22,6 +27,8 @@ export interface PersonEntryDenominations {
   d20: number;
   d10: number;
   coins: number; // direct amount
+  /** Optional testing liters per product (stored on primary row only). */
+  _testing?: PersonEntryTesting[];
 }
 
 export type ReportInclusionStatus = 'pending' | 'draft' | 'included';
