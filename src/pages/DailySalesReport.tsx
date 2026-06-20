@@ -430,6 +430,7 @@ export default function DailySalesReport() {
         totals: t,
         bankDeposited: bank,
         netCashInHand: t.collected - bank,
+        businessName: businessProfile.companyName || undefined,
         dipReadings,
       });
       setReportViewOpen(true);
