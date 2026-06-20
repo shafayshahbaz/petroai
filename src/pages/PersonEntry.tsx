@@ -646,7 +646,7 @@ export default function PersonEntry() {
         <CardContent className="space-y-3">
           {testing.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              No testing recorded. Testing liters reduce total sales in the daily report (Total Sales − Testing = Net Sales).
+              Optional. Testing liters are subtracted from sales in the daily report.
             </p>
           )}
           {testing.map((row) => (
