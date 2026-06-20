@@ -26,13 +26,21 @@ export interface SalesReportData {
     cash: number; upi: number; collected: number;
     d500: number; d200: number; d100: number; d50: number; d20: number; d10: number; coins: number;
   };
+  /** Combined bank-outflow total (kept for backwards compat). */
   bankDeposited: number;
+  /** Individual bank deposits — render each as a separate ledger row. */
+  bankDeposits?: { amount: number; label: string }[];
+  /** Cash-transfer entries (someone took cash, paid into bank). Render each separately with remarks. */
+  cashTransfers?: { amount: number; label: string }[];
   netCashInHand: number;
   businessName?: string;
   openingBalance?: number;
   dipReadings?: DipReportRow[];
   /** Optional: testing deduction per product (liters). Defaults to 0. */
   testingByProduct?: Record<string, number>;
+  /** All registered nozzles (with last closing reading). Lets the report
+   *  include nozzles with zero sales (opening = closing = last closing). */
+  allNozzles?: { label: string; fuel_type: string; last_closing: number }[];
 }
 
 // ---------- helpers ----------
