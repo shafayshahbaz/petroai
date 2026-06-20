@@ -845,16 +845,11 @@ export default function PersonEntry() {
       </Card>
 
       <Card className="border-2 border-primary/40">
-        <CardContent className="py-4 flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="text-base font-medium">Net Payable</span>
-            <span className="text-2xl md:text-3xl font-extrabold text-primary">
-              {formatRupees(netPayable)}
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Gross {formatRupees(grossAmount)} + Income {formatRupees(totalIncome)} − Deductions {formatRupees(totalExpenses)} = {formatRupees(netPayable)}
-          </p>
+        <CardContent className="py-4 flex items-center justify-between">
+          <span className="text-base font-medium">Net Payable</span>
+          <span className="text-2xl md:text-3xl font-extrabold text-primary">
+            {formatRupees(netPayable)}
+          </span>
         </CardContent>
       </Card>
 
