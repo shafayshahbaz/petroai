@@ -629,6 +629,80 @@ export default function PersonEntry() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Testing (Liters)</CardTitle>
+            <Button
+              onClick={() =>
+                setTesting((rs) => [
+                  ...rs,
+                  { id: newId(), product: 'MS', liters: '' },
+                ])
+              }
+              size="sm"
+              variant="outline"
+            >
+              <Plus className="w-4 h-4 mr-1" /> Add
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {testing.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No testing recorded. Testing liters reduce total sales in the daily report (Total Sales − Testing = Net Sales).
+            </p>
+          )}
+          {testing.map((row) => (
+            <div key={row.id} className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-6 md:col-span-5 space-y-1">
+                <Label className="text-xs">Product</Label>
+                <Select
+                  value={row.product}
+                  onValueChange={(v) =>
+                    setTesting((rs) =>
+                      rs.map((r) => (r.id === row.id ? { ...r, product: v as any } : r))
+                    )
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MS">Petrol (MS)</SelectItem>
+                    <SelectItem value="HSD">Diesel (HSD)</SelectItem>
+                    <SelectItem value="POWER">Power</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-5 md:col-span-6 space-y-1">
+                <Label className="text-xs">Liters</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={row.liters}
+                  onChange={(e) =>
+                    setTesting((rs) =>
+                      rs.map((r) => (r.id === row.id ? { ...r, liters: e.target.value } : r))
+                    )
+                  }
+                  placeholder="0.00"
+                  className="text-base"
+                />
+              </div>
+              <div className="col-span-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setTesting((rs) => rs.filter((r) => r.id !== row.id))}
+                  aria-label="Remove"
+                >
+                  <Trash2 className="w-4 h-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+        <CardHeader>
+          <div className="flex items-center justify-between">
             <CardTitle className="text-base">Expenses</CardTitle>
             <Button onClick={addExpenseRow} size="sm" variant="outline">
               <Plus className="w-4 h-4 mr-1" /> Add
