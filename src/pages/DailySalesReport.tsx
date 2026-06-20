@@ -37,9 +37,13 @@ import {
   listReports,
   getEntriesForReport,
   unlockReport,
+  updatePersonEntry,
+  deletePersonEntry,
+  getLastClosingForNozzle,
   PersonEntryRecord,
   DailySalesReport as DailySalesReportRow,
 } from '@/services/personEntryService';
+import { useCloudData } from '@/contexts/CloudDataContext';
 import {
   listBankDepositsForDate,
   createBankDeposit,
@@ -75,6 +79,7 @@ export default function DailySalesReport() {
   const { toast } = useToast();
   const { clientId } = useAuth();
   const { businessProfile } = useSettingsStore();
+  const { nozzles: cloudNozzles } = useCloudData();
   const [entries, setEntries] = useState<PersonEntryRecord[]>([]);
   const [reports, setReports] = useState<DailySalesReportRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +87,14 @@ export default function DailySalesReport() {
   const [viewOpen, setViewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'create' | 'view'>('create');
+  const [editEntry, setEditEntry] = useState<PersonEntryRecord | null>(null);
+  const [editClosing, setEditClosing] = useState('');
+  const [editRate, setEditRate] = useState('');
+  const [editCash, setEditCash] = useState('');
+  const [editUpi, setEditUpi] = useState('');
+  const [allNozzlesWithLast, setAllNozzlesWithLast] = useState<
+    { label: string; fuel_type: string; last_closing: number }[]
+  >([]);
 
   // Wizard state
   const [wizard, setWizard] = useState<WizardStep>('idle');
@@ -180,15 +193,66 @@ export default function DailySalesReport() {
     return t;
   }, [selectedEntries]);
 
-  const [bankToday, setBankToday] = useState<number>(0);
+  const [bankDeposits, setBankDeposits] = useState<{ amount: number; label: string }[]>([]);
+  const [cashTransfers, setCashTransfers] = useState<{ amount: number; label: string }[]>([]);
   useEffect(() => {
-    if (!reportDate) { setBankToday(0); return; }
+    if (!reportDate) { setBankDeposits([]); setCashTransfers([]); return; }
     listBankDepositsForDate(reportDate)
-      .then((rows) => setBankToday(rows.reduce((s, r) => s + Number(r.amount || 0), 0)))
-      .catch(() => setBankToday(0));
+      .then((rows) => {
+        const dep: { amount: number; label: string }[] = [];
+        const tr: { amount: number; label: string }[] = [];
+        for (const r of rows) {
+          const amt = Number(r.amount || 0);
+          if (r.transaction_type === 'cash_transfer') {
+            const lbl = r.notes?.trim() || r.reference_number || 'Cash to Bank';
+            tr.push({ amount: amt, label: `Cash to Bank — ${lbl}` });
+          } else {
+            const lbl = r.bank_name?.trim() || 'Bank Deposit';
+            dep.push({ amount: amt, label: `Bank Deposit (${lbl})` });
+          }
+        }
+        setBankDeposits(dep);
+        setCashTransfers(tr);
+      })
+      .catch(() => { setBankDeposits([]); setCashTransfers([]); });
   }, [reportDate, wizard]);
 
-  const netCashInHand = totals.collected - bankToday;
+  const bankToday = bankDeposits.reduce((s, x) => s + x.amount, 0);
+  const cashTransferTotal = cashTransfers.reduce((s, x) => s + x.amount, 0);
+  const netCashInHand = totals.collected - bankToday - cashTransferTotal;
+
+  // Build last_closing for every cloud nozzle so the report can include
+  // nozzles with zero sales (opening = closing = last closing).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const list = await Promise.all(
+        cloudNozzles.map(async (n) => {
+          let last = 0;
+          try {
+            const r = await getLastClosingForNozzle(n.id);
+            if (r) last = Number(r.closing_reading) || 0;
+          } catch {}
+          return { label: n.label, fuel_type: n.fuel_type, last_closing: last };
+        })
+      );
+      if (alive) setAllNozzlesWithLast(list);
+    })();
+    return () => { alive = false; };
+  }, [cloudNozzles]);
+
+  // Aggregate testing liters per product from selected entries
+  const testingByProduct = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const e of selectedEntries) {
+      const t = (e.denominations as any)?._testing as { product: string; liters: number }[] | undefined;
+      if (!t) continue;
+      for (const r of t) {
+        out[r.product] = (out[r.product] || 0) + (Number(r.liters) || 0);
+      }
+    }
+    return out;
+  }, [selectedEntries]);
 
   const reportData: SalesReportData | null = useMemo(() => {
     if (!reportDate) return null;
@@ -197,11 +261,15 @@ export default function DailySalesReport() {
       entries: selectedEntries,
       totals,
       bankDeposited: bankToday,
+      bankDeposits,
+      cashTransfers,
       netCashInHand,
       businessName: businessProfile.companyName || undefined,
       dipReadings: dipComputed.length > 0 ? dipComputed : undefined,
+      allNozzles: allNozzlesWithLast,
+      testingByProduct,
     };
-  }, [reportDate, selectedEntries, totals, bankToday, netCashInHand, dipComputed, businessProfile.companyName]);
+  }, [reportDate, selectedEntries, totals, bankToday, bankDeposits, cashTransfers, netCashInHand, dipComputed, businessProfile.companyName, allNozzlesWithLast, testingByProduct]);
 
   const handleDownload = (data: SalesReportData | null) => {
     if (!data) return;
@@ -407,7 +475,26 @@ export default function DailySalesReport() {
         t.d20 += +d.d20 || 0; t.d10 += +d.d10 || 0;
         t.coins += +d.coins || 0;
       }
-      const bank = deposits.reduce((s, d) => s + Number(d.amount || 0), 0);
+      const depRows: { amount: number; label: string }[] = [];
+      const trRows: { amount: number; label: string }[] = [];
+      for (const d of deposits) {
+        const amt = Number(d.amount || 0);
+        if (d.transaction_type === 'cash_transfer') {
+          const lbl = d.notes?.trim() || d.reference_number || 'Cash to Bank';
+          trRows.push({ amount: amt, label: `Cash to Bank — ${lbl}` });
+        } else {
+          const lbl = d.bank_name?.trim() || 'Bank Deposit';
+          depRows.push({ amount: amt, label: `Bank Deposit (${lbl})` });
+        }
+      }
+      const bank = depRows.reduce((s, x) => s + x.amount, 0);
+      const trTotal = trRows.reduce((s, x) => s + x.amount, 0);
+      const tByProd: Record<string, number> = {};
+      for (const e of reportEntries) {
+        const tt = (e.denominations as any)?._testing as { product: string; liters: number }[] | undefined;
+        if (!tt) continue;
+        for (const x of tt) tByProd[x.product] = (tByProd[x.product] || 0) + (Number(x.liters) || 0);
+      }
       let dipReadings: DipReportRow[] | undefined;
       if (dipRows.length > 0) {
         const tks = await listTanks();
@@ -429,9 +516,13 @@ export default function DailySalesReport() {
         entries: reportEntries,
         totals: t,
         bankDeposited: bank,
-        netCashInHand: t.collected - bank,
+        bankDeposits: depRows,
+        cashTransfers: trRows,
+        netCashInHand: t.collected - bank - trTotal,
         businessName: businessProfile.companyName || undefined,
         dipReadings,
+        allNozzles: allNozzlesWithLast,
+        testingByProduct: tByProd,
       });
       setReportViewOpen(true);
     } catch (e: any) {
@@ -454,6 +545,56 @@ export default function DailySalesReport() {
     }
   };
 
+  // ===== Entry edit / delete =====
+  const openEdit = (e: PersonEntryRecord) => {
+    setEditEntry(e);
+    setEditClosing(String(e.closing_reading ?? ''));
+    setEditRate(String(e.rate ?? ''));
+    setEditCash(String(e.total_cash ?? ''));
+    setEditUpi(String(e.upi_received ?? ''));
+  };
+
+  const saveEdit = async () => {
+    if (!editEntry) return;
+    const closing = Number(editClosing) || 0;
+    const rate = Number(editRate) || 0;
+    const cash = Number(editCash) || 0;
+    const upi = Number(editUpi) || 0;
+    const liters = Math.max(0, closing - Number(editEntry.opening_reading));
+    const gross = Math.round(liters * rate * 100) / 100;
+    const totalCollected = cash + upi;
+    const net = gross + Number(editEntry.total_income || 0) - Number(editEntry.total_expenses || 0);
+    try {
+      await updatePersonEntry(editEntry.id, {
+        closing_reading: closing,
+        rate,
+        liters_sold: liters,
+        gross_amount: gross,
+        total_cash: cash,
+        upi_received: upi,
+        total_collected: totalCollected,
+        difference: totalCollected - net,
+        net_payable: net,
+      } as any);
+      toast({ title: 'Entry updated' });
+      setEditEntry(null);
+      await refresh();
+    } catch (err: any) {
+      toast({ title: 'Update failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteEntry = async (e: PersonEntryRecord) => {
+    if (!window.confirm(`Delete ${e.nozzle_man_name}'s entry (${e.nozzle_label})?`)) return;
+    try {
+      await deletePersonEntry(e.id);
+      toast({ title: 'Entry deleted' });
+      await refresh();
+    } catch (err: any) {
+      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -462,38 +603,40 @@ export default function DailySalesReport() {
     );
   }
 
-  const renderRow = (e: PersonEntryRecord) => {
+  const renderRow = (e: PersonEntryRecord, opts?: { readonly?: boolean }) => {
     const isChecked = selected.has(e.id);
     return (
       <div
         key={e.id}
         className={cn(
-          'rounded-lg border p-3 flex gap-3 items-start',
+          'rounded-lg border p-3 flex gap-3 items-center',
           isChecked ? 'border-primary bg-primary/5' : 'bg-card'
         )}
       >
-        <div className="pt-0.5">
+        {!opts?.readonly && (
           <Checkbox checked={isChecked} onCheckedChange={() => toggle(e.id)} />
-        </div>
+        )}
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-semibold">{e.nozzle_man_name}</span>
-            <Badge variant="secondary" className="text-xs">
-              {e.nozzle_label} · {PRODUCT_LABEL[e.product] || e.product}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {format(parseISO(e.entry_date), 'dd MMM yyyy')}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-semibold truncate">{e.nozzle_man_name}</span>
+            <span className="text-xs text-muted-foreground truncate">
+              · {e.nozzle_label} · {format(parseISO(e.entry_date), 'dd MMM')}
             </span>
             {e.report_inclusion_status === 'draft' && (
               <Badge variant="outline" className="text-xs border-blue-500 text-blue-600">Draft</Badge>
             )}
           </div>
-          <div className="mt-1 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 text-xs">
-            <span className="text-muted-foreground">Liters: <span className="text-foreground font-medium">{formatLiters(e.liters_sold)}</span></span>
-            <span className="text-muted-foreground">Gross: <span className="text-foreground font-medium">{formatRupees(e.gross_amount)}</span></span>
-            <span className="text-muted-foreground">Net: <span className="text-foreground font-medium">{formatRupees(e.net_payable)}</span></span>
-            <span className="text-muted-foreground">Collected: <span className="text-foreground font-medium">{formatRupees(e.total_collected)}</span></span>
+          <div className="text-base font-bold text-primary mt-0.5">
+            {formatRupees(e.gross_amount)}
           </div>
+        </div>
+        <div className="flex gap-1">
+          <Button size="icon" variant="ghost" onClick={() => openEdit(e)} aria-label="Edit">
+            <Edit3 className="w-4 h-4" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={() => handleDeleteEntry(e)} aria-label="Delete">
+            <Trash2 className="w-4 h-4 text-destructive" />
+          </Button>
         </div>
       </div>
     );
@@ -798,6 +941,67 @@ export default function DailySalesReport() {
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
               Confirm & Lock
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== Edit Entry modal ===== */}
+      <Dialog open={!!editEntry} onOpenChange={(o) => !o && setEditEntry(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Edit Entry {editEntry && `· ${editEntry.nozzle_man_name} · ${editEntry.nozzle_label}`}
+            </DialogTitle>
+            <DialogDescription>
+              Opening reading is locked. Liters & gross recompute automatically.
+            </DialogDescription>
+          </DialogHeader>
+          {editEntry && (
+            <div className="space-y-3">
+              <div className="text-xs text-muted-foreground">
+                Opening: <b className="text-foreground">{editEntry.opening_reading}</b>
+              </div>
+              <div>
+                <Label>Closing Reading</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={editClosing}
+                  onChange={(e) => setEditClosing(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Rate / L</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editRate}
+                  onChange={(e) => setEditRate(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Total Cash</Label>
+                  <Input
+                    type="number"
+                    value={editCash}
+                    onChange={(e) => setEditCash(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>UPI Received</Label>
+                  <Input
+                    type="number"
+                    value={editUpi}
+                    onChange={(e) => setEditUpi(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditEntry(null)}>Cancel</Button>
+            <Button onClick={saveEdit}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

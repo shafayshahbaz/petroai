@@ -111,6 +111,7 @@ export default function PersonEntry() {
 
   const [expenses, setExpenses] = useState<PersonEntryExpense[]>([]);
   const [incomes, setIncomes] = useState<PersonEntryIncome[]>([]);
+  const [testing, setTesting] = useState<{ id: string; product: 'MS' | 'HSD' | 'POWER'; liters: string }[]>([]);
 
   const [d500, setD500] = useState<string>('');
   const [d200, setD200] = useState<string>('');
@@ -246,6 +247,7 @@ export default function PersonEntry() {
 
     setExpenses([]);
     setIncomes([]);
+    setTesting([]);
     setD500(''); setD200(''); setD100(''); setD50(''); setD20(''); setD10(''); setCoins('');
     setUpi('');
   };
@@ -324,6 +326,9 @@ export default function PersonEntry() {
             ? {
                 d500: num(d500), d200: num(d200), d100: num(d100),
                 d50: num(d50), d20: num(d20), d10: num(d10), coins: num(coins),
+                _testing: testing
+                  .filter((t) => num(t.liters) > 0)
+                  .map((t) => ({ product: t.product, liters: num(t.liters) })),
               }
             : { d500: 0, d200: 0, d100: 0, d50: 0, d20: 0, d10: 0, coins: 0 },
           total_cash: isPrimary ? totalCash : 0,
@@ -618,6 +623,81 @@ export default function PersonEntry() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Testing (Liters)</CardTitle>
+            <Button
+              onClick={() =>
+                setTesting((rs) => [
+                  ...rs,
+                  { id: newId(), product: 'MS', liters: '' },
+                ])
+              }
+              size="sm"
+              variant="outline"
+            >
+              <Plus className="w-4 h-4 mr-1" /> Add
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {testing.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No testing recorded. Testing liters reduce total sales in the daily report (Total Sales − Testing = Net Sales).
+            </p>
+          )}
+          {testing.map((row) => (
+            <div key={row.id} className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-6 md:col-span-5 space-y-1">
+                <Label className="text-xs">Product</Label>
+                <Select
+                  value={row.product}
+                  onValueChange={(v) =>
+                    setTesting((rs) =>
+                      rs.map((r) => (r.id === row.id ? { ...r, product: v as any } : r))
+                    )
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MS">Petrol (MS)</SelectItem>
+                    <SelectItem value="HSD">Diesel (HSD)</SelectItem>
+                    <SelectItem value="POWER">Power</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-5 md:col-span-6 space-y-1">
+                <Label className="text-xs">Liters</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={row.liters}
+                  onChange={(e) =>
+                    setTesting((rs) =>
+                      rs.map((r) => (r.id === row.id ? { ...r, liters: e.target.value } : r))
+                    )
+                  }
+                  placeholder="0.00"
+                  className="text-base"
+                />
+              </div>
+              <div className="col-span-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setTesting((rs) => rs.filter((r) => r.id !== row.id))}
+                  aria-label="Remove"
+                >
+                  <Trash2 className="w-4 h-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
 

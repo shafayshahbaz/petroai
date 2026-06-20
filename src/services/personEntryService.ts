@@ -14,6 +14,11 @@ export interface PersonEntryIncome {
   amount: number;
 }
 
+export interface PersonEntryTesting {
+  product: 'MS' | 'HSD' | 'POWER';
+  liters: number;
+}
+
 export interface PersonEntryDenominations {
   d500: number;
   d200: number;
@@ -22,6 +27,8 @@ export interface PersonEntryDenominations {
   d20: number;
   d10: number;
   coins: number; // direct amount
+  /** Optional testing liters per product (stored on primary row only). */
+  _testing?: PersonEntryTesting[];
 }
 
 export type ReportInclusionStatus = 'pending' | 'draft' | 'included';
@@ -89,6 +96,25 @@ export async function createPersonEntry(input: PersonEntryInput, clientId: strin
     .single();
   if (error) throw error;
   return data as unknown as PersonEntryRecord;
+}
+
+export async function updatePersonEntry(id: string, patch: Partial<PersonEntryInput>) {
+  const { data, error } = await supabase
+    .from('person_entries' as any)
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as unknown as PersonEntryRecord;
+}
+
+export async function deletePersonEntry(id: string) {
+  const { error } = await supabase
+    .from('person_entries' as any)
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
 }
 
 export async function listPersonEntries(fromDate?: string, toDate?: string): Promise<PersonEntryRecord[]> {

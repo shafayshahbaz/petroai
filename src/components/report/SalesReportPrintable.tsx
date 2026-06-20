@@ -26,13 +26,21 @@ export interface SalesReportData {
     cash: number; upi: number; collected: number;
     d500: number; d200: number; d100: number; d50: number; d20: number; d10: number; coins: number;
   };
+  /** Combined bank-outflow total (kept for backwards compat). */
   bankDeposited: number;
+  /** Individual bank deposits — render each as a separate ledger row. */
+  bankDeposits?: { amount: number; label: string }[];
+  /** Cash-transfer entries (someone took cash, paid into bank). Render each separately with remarks. */
+  cashTransfers?: { amount: number; label: string }[];
   netCashInHand: number;
   businessName?: string;
   openingBalance?: number;
   dipReadings?: DipReportRow[];
   /** Optional: testing deduction per product (liters). Defaults to 0. */
   testingByProduct?: Record<string, number>;
+  /** All registered nozzles (with last closing reading). Lets the report
+   *  include nozzles with zero sales (opening = closing = last closing). */
+  allNozzles?: { label: string; fuel_type: string; last_closing: number }[];
 }
 
 // ---------- helpers ----------
@@ -63,19 +71,42 @@ function aggregate(data: SalesReportData): ProductAgg[] {
     }
   > = {};
 
+  // Seed every registered nozzle so zero-sale nozzles appear in the report.
+  if (data.allNozzles) {
+    for (const n of data.allNozzles) {
+      const p = n.fuel_type || 'OTHER';
+      if (!map[p]) map[p] = { nozzles: {}, weightedRateNum: 0, litersTotal: 0 };
+      const key = n.label || 'N';
+      if (!map[p].nozzles[key]) {
+        map[p].nozzles[key] = {
+          label: key,
+          opening: n.last_closing,
+          closing: n.last_closing,
+          sales: 0,
+        };
+      }
+    }
+  }
+
   for (const e of data.entries) {
     const p = e.product || 'OTHER';
     if (!map[p]) map[p] = { nozzles: {}, weightedRateNum: 0, litersTotal: 0 };
     const key = e.nozzle_label || 'N';
-    if (!map[p].nozzles[key]) {
-      map[p].nozzles[key] = { label: key, opening: 0, closing: 0, sales: 0 };
+    const existed = map[p].nozzles[key];
+    if (!existed || existed.sales === 0) {
+      // First real entry for this nozzle: replace the zero-seed.
+      map[p].nozzles[key] = {
+        label: key,
+        opening: Number(e.opening_reading),
+        closing: Number(e.closing_reading),
+        sales: Math.round((Number(e.closing_reading) - Number(e.opening_reading)) * 100) / 100,
+      };
+    } else {
+      const n = existed;
+      n.opening = Math.min(n.opening, Number(e.opening_reading));
+      n.closing = Math.max(n.closing, Number(e.closing_reading));
+      n.sales = Math.round((n.closing - n.opening) * 100) / 100;
     }
-    const n = map[p].nozzles[key];
-    // For multi-shift on same nozzle: keep earliest opening and latest closing
-    // Approximate: smallest opening, largest closing
-    n.opening = n.opening === 0 ? Number(e.opening_reading) : Math.min(n.opening, Number(e.opening_reading));
-    n.closing = Math.max(n.closing, Number(e.closing_reading));
-    n.sales = Math.round((n.closing - n.opening) * 100) / 100;
     map[p].weightedRateNum += Number(e.rate) * Number(e.liters_sold);
     map[p].litersTotal += Number(e.liters_sold);
   }
@@ -87,7 +118,7 @@ function aggregate(data: SalesReportData): ProductAgg[] {
   });
 
   return products.map((p) => {
-    const nozzles = Object.values(map[p].nozzles);
+    const nozzles = Object.values(map[p].nozzles).sort((a, b) => a.label.localeCompare(b.label));
     const totalSales = Math.round(nozzles.reduce((s, n) => s + n.sales, 0) * 1000) / 1000;
     const testing = Number(data.testingByProduct?.[p] || 0);
     const netSales = Math.round((totalSales - testing) * 1000) / 1000;
@@ -142,11 +173,21 @@ export function SalesReportPrintable({ data }: { data: SalesReportData }) {
   }
   const expenseTotal = expenses.reduce((s, x) => s + x.amount, 0);
 
+  // Separate bank deposits and cash transfers
+  const bankDeposits =
+    data.bankDeposits && data.bankDeposits.length > 0
+      ? data.bankDeposits
+      : data.bankDeposited > 0
+      ? [{ amount: data.bankDeposited, label: 'Cash Deposit (Bank)' }]
+      : [];
+  const cashTransfers = data.cashTransfers || [];
+  const bankDepositsTotal = bankDeposits.reduce((s, x) => s + x.amount, 0);
+  const cashTransfersTotal = cashTransfers.reduce((s, x) => s + x.amount, 0);
+
   const leftTotal = opening + productIncomeTotal + otherIncomeTotal;
-  const rightOps = data.bankDeposited + data.totals.upi + expenseTotal;
+  const rightOps = bankDepositsTotal + cashTransfersTotal + data.totals.upi + expenseTotal;
   const cashInHand = leftTotal - rightOps;
   const saleCash = data.totals.cash;
-  const difference = cashInHand - saleCash;
 
   return (
     <div
@@ -227,7 +268,12 @@ export function SalesReportPrintable({ data }: { data: SalesReportData }) {
 
           {/* RIGHT: Expenses */}
           <div>
-            <LedgerRow amount={data.bankDeposited} label="Cash Deposit (Bank)" />
+            {bankDeposits.map((b, idx) => (
+              <LedgerRow key={`bd-${idx}`} amount={b.amount} label={b.label} />
+            ))}
+            {cashTransfers.map((c, idx) => (
+              <LedgerRow key={`ct-${idx}`} amount={c.amount} label={c.label} />
+            ))}
             <LedgerRow amount={data.totals.upi} label="UPI / Phonepe (Combined)" />
             {expenses.map((x, idx) => (
               <LedgerRow key={`ex-${idx}`} amount={x.amount} label={x.label} />
@@ -236,12 +282,6 @@ export function SalesReportPrintable({ data }: { data: SalesReportData }) {
 
             <LedgerRow amount={cashInHand} label="Cash In Hand" />
             <LedgerRow amount={leftTotal} label="" bold />
-
-            <div className="mt-4 border-t border-black pt-2">
-              <LedgerRow amount={saleCash} label="Sale Cash" />
-              <LedgerRow amount={difference} label="Difference" />
-              <LedgerRow amount={cashInHand} label="" bold />
-            </div>
           </div>
         </div>
       </div>
@@ -366,11 +406,20 @@ export function buildPrintableHtml(data: SalesReportData): string {
     expenses.push({ label: ex.description || ex.type, amount: Number(ex.amount) || 0 });
   const expenseTotal = expenses.reduce((s, x) => s + x.amount, 0);
 
+  const bankDeposits =
+    data.bankDeposits && data.bankDeposits.length > 0
+      ? data.bankDeposits
+      : data.bankDeposited > 0
+      ? [{ amount: data.bankDeposited, label: 'Cash Deposit (Bank)' }]
+      : [];
+  const cashTransfers = data.cashTransfers || [];
+  const bankDepositsTotal = bankDeposits.reduce((s, x) => s + x.amount, 0);
+  const cashTransfersTotal = cashTransfers.reduce((s, x) => s + x.amount, 0);
+
   const leftTotal = opening + productIncomeTotal + otherIncomeTotal;
-  const rightOps = data.bankDeposited + data.totals.upi + expenseTotal;
+  const rightOps = bankDepositsTotal + cashTransfersTotal + data.totals.upi + expenseTotal;
   const cashInHand = leftTotal - rightOps;
   const saleCash = data.totals.cash;
-  const difference = cashInHand - saleCash;
 
   const productBlocks = products
     .map((p) => {
@@ -428,16 +477,13 @@ export function buildPrintableHtml(data: SalesReportData): string {
     ledgerRow(leftTotal, '', true);
 
   const rightRows =
-    ledgerRow(data.bankDeposited, 'Cash Deposit (Bank)') +
+    bankDeposits.map((b) => ledgerRow(b.amount, escapeHtml(b.label))).join('') +
+    cashTransfers.map((c) => ledgerRow(c.amount, escapeHtml(c.label))).join('') +
     ledgerRow(data.totals.upi, 'UPI / Phonepe (Combined)') +
     expenses.map((x) => ledgerRow(x.amount, escapeHtml(x.label))).join('') +
     ledgerRow(rightOps, '', true) +
     ledgerRow(cashInHand, 'Cash In Hand') +
-    ledgerRow(leftTotal, '', true) +
-    `<div class="lsep"></div>` +
-    ledgerRow(saleCash, 'Sale Cash') +
-    ledgerRow(difference, 'Difference') +
-    ledgerRow(cashInHand, '', true);
+    ledgerRow(leftTotal, '', true);
 
   const denomRows = [
     ['Rs. 500', data.totals.d500, 500],
