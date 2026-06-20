@@ -810,10 +810,10 @@ export default function DailySalesReport() {
       <Dialog open={wizard === 'bank'} onOpenChange={(o) => !o && setWizard('idle')}>
         <DialogContent className="max-w-md">
           <DialogHeader>
+            <StepBar current={2} />
             <DialogTitle>Bank Deposit Today?</DialogTitle>
             <DialogDescription>
-              No bank deposit recorded for {reportDate && format(parseISO(reportDate), 'dd MMM yyyy')}.
-              Enter it now, or skip.
+              No bank deposit recorded for {reportDate && format(parseISO(reportDate), 'dd MMM yyyy')}. Enter it now, or skip.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
