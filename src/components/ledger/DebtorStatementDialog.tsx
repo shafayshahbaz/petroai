@@ -90,14 +90,15 @@ export function DebtorStatementDialog({ open, onOpenChange, debtorId, debtorName
   useEffect(() => {
     if (!open || !clientId || !debtorId) return;
     setLoading(true);
-    supabase
-      .from('ledger_transactions')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('account_type', 'debtor')
-      .eq('account_id', debtorId)
-      .order('transaction_date', { ascending: true })
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('ledger_transactions')
+          .select('*')
+          .eq('client_id', clientId)
+          .eq('account_type', 'debtor')
+          .eq('account_id', debtorId)
+          .order('transaction_date', { ascending: true });
         setRows(
           (data || []).map((t: any) => ({
             date: t.transaction_date,
@@ -106,8 +107,10 @@ export function DebtorStatementDialog({ open, onOpenChange, debtorId, debtorName
             credit: t.transaction_type === 'CREDIT' ? Number(t.amount) : 0,
           }))
         );
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [open, clientId, debtorId]);
 
   const computed = useMemo(() => {
