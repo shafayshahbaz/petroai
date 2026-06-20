@@ -247,6 +247,7 @@ export default function PersonEntry() {
 
     setExpenses([]);
     setIncomes([]);
+    setTesting([]);
     setD500(''); setD200(''); setD100(''); setD50(''); setD20(''); setD10(''); setCoins('');
     setUpi('');
   };
