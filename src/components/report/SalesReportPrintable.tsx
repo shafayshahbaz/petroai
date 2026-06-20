@@ -173,11 +173,21 @@ export function SalesReportPrintable({ data }: { data: SalesReportData }) {
   }
   const expenseTotal = expenses.reduce((s, x) => s + x.amount, 0);
 
+  // Separate bank deposits and cash transfers
+  const bankDeposits =
+    data.bankDeposits && data.bankDeposits.length > 0
+      ? data.bankDeposits
+      : data.bankDeposited > 0
+      ? [{ amount: data.bankDeposited, label: 'Cash Deposit (Bank)' }]
+      : [];
+  const cashTransfers = data.cashTransfers || [];
+  const bankDepositsTotal = bankDeposits.reduce((s, x) => s + x.amount, 0);
+  const cashTransfersTotal = cashTransfers.reduce((s, x) => s + x.amount, 0);
+
   const leftTotal = opening + productIncomeTotal + otherIncomeTotal;
-  const rightOps = data.bankDeposited + data.totals.upi + expenseTotal;
+  const rightOps = bankDepositsTotal + cashTransfersTotal + data.totals.upi + expenseTotal;
   const cashInHand = leftTotal - rightOps;
   const saleCash = data.totals.cash;
-  const difference = cashInHand - saleCash;
 
   return (
     <div
