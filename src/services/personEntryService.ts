@@ -301,3 +301,28 @@ export async function saveDailySalesReport(params: {
 
   return { report, merged };
 }
+
+export async function getEntriesForReport(reportId: string): Promise<PersonEntryRecord[]> {
+  const { data, error } = await supabase
+    .from('person_entries' as any)
+    .select('*')
+    .eq('report_id', reportId)
+    .order('entry_date', { ascending: false });
+  if (error) throw error;
+  return (data || []) as unknown as PersonEntryRecord[];
+}
+
+export async function unlockReport(reportId: string): Promise<void> {
+  // Reset all entries back to pending
+  const { error: upErr } = await supabase
+    .from('person_entries' as any)
+    .update({ report_inclusion_status: 'pending', report_id: null })
+    .eq('report_id', reportId);
+  if (upErr) throw upErr;
+  // Delete the report row
+  const { error: delErr } = await supabase
+    .from('daily_sales_reports' as any)
+    .delete()
+    .eq('id', reportId);
+  if (delErr) throw delErr;
+}

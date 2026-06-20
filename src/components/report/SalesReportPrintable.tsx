@@ -8,6 +8,15 @@ const PRODUCT_LABEL: Record<string, string> = {
   POWER: 'Power',
 };
 
+export interface DipReportRow {
+  tank_name: string;
+  fuel_type: string;
+  dip_reading: number;
+  dip_liters: number | null;
+  system_liters: number | null;
+  variance: number | null;
+}
+
 export interface SalesReportData {
   reportDate: string;
   entries: PersonEntryRecord[];
@@ -19,6 +28,7 @@ export interface SalesReportData {
   bankDeposited: number;
   netCashInHand: number;
   businessName?: string;
+  dipReadings?: DipReportRow[];
 }
 
 /**
@@ -158,6 +168,36 @@ export function SalesReportPrintable({ data }: { data: SalesReportData }) {
           <Row label="Net Cash in Hand (carries forward)" value={formatRupees(netCashInHand)} bold accent />
         </tbody>
       </table>
+
+      {data.dipReadings && data.dipReadings.length > 0 && (
+        <>
+          <h2 className="text-base font-bold mt-4 mb-1">Tank Dip Readings</h2>
+          <table className="w-full text-xs border border-black border-collapse mb-4">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border border-black px-2 py-1 text-left">Tank</th>
+                <th className="border border-black px-2 py-1 text-left">Fuel</th>
+                <th className="border border-black px-2 py-1 text-right">Dip (cm)</th>
+                <th className="border border-black px-2 py-1 text-right">Dip Liters</th>
+                <th className="border border-black px-2 py-1 text-right">System Liters</th>
+                <th className="border border-black px-2 py-1 text-right">Variance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.dipReadings.map((d, i) => (
+                <tr key={i}>
+                  <td className="border border-black px-2 py-1">{d.tank_name}</td>
+                  <td className="border border-black px-2 py-1">{d.fuel_type}</td>
+                  <td className="border border-black px-2 py-1 text-right">{d.dip_reading}</td>
+                  <td className="border border-black px-2 py-1 text-right">{d.dip_liters != null ? formatLiters(d.dip_liters) : '—'}</td>
+                  <td className="border border-black px-2 py-1 text-right">{d.system_liters != null ? formatLiters(d.system_liters) : '—'}</td>
+                  <td className="border border-black px-2 py-1 text-right">{d.variance != null ? formatLiters(d.variance) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
 
       <div className="mt-6 text-[10px] text-gray-600 text-center">
         Generated on {format(new Date(), 'dd MMM yyyy, HH:mm')}
@@ -305,6 +345,30 @@ export function buildPrintableHtml(data: SalesReportData): string {
       <tr class="accent"><td>Net Cash in Hand (carries forward)</td><td class="r">${fmtR(netCashInHand)}</td></tr>
     </tbody>
   </table>
+
+  ${
+    data.dipReadings && data.dipReadings.length > 0
+      ? `<h2>Tank Dip Readings</h2>
+  <table>
+    <thead><tr><th>Tank</th><th>Fuel</th><th class="r">Dip (cm)</th><th class="r">Dip Liters</th><th class="r">System Liters</th><th class="r">Variance</th></tr></thead>
+    <tbody>
+      ${data.dipReadings
+        .map(
+          (d) => `<tr>
+        <td>${escapeHtml(d.tank_name)}</td>
+        <td>${escapeHtml(d.fuel_type)}</td>
+        <td class="r">${d.dip_reading}</td>
+        <td class="r">${d.dip_liters != null ? fmtL(d.dip_liters) : '—'}</td>
+        <td class="r">${d.system_liters != null ? fmtL(d.system_liters) : '—'}</td>
+        <td class="r">${d.variance != null ? fmtL(d.variance) : '—'}</td>
+      </tr>`
+        )
+        .join('')}
+    </tbody>
+  </table>`
+      : ''
+  }
+
 
   <div class="meta">Generated on ${format(new Date(), 'dd MMM yyyy, HH:mm')}</div>
   <script>setTimeout(function(){ try { window.print(); } catch(e) {} }, 300);</script>
