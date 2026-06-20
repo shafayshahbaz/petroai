@@ -268,7 +268,12 @@ export function SalesReportPrintable({ data }: { data: SalesReportData }) {
 
           {/* RIGHT: Expenses */}
           <div>
-            <LedgerRow amount={data.bankDeposited} label="Cash Deposit (Bank)" />
+            {bankDeposits.map((b, idx) => (
+              <LedgerRow key={`bd-${idx}`} amount={b.amount} label={b.label} />
+            ))}
+            {cashTransfers.map((c, idx) => (
+              <LedgerRow key={`ct-${idx}`} amount={c.amount} label={c.label} />
+            ))}
             <LedgerRow amount={data.totals.upi} label="UPI / Phonepe (Combined)" />
             {expenses.map((x, idx) => (
               <LedgerRow key={`ex-${idx}`} amount={x.amount} label={x.label} />
@@ -277,12 +282,6 @@ export function SalesReportPrintable({ data }: { data: SalesReportData }) {
 
             <LedgerRow amount={cashInHand} label="Cash In Hand" />
             <LedgerRow amount={leftTotal} label="" bold />
-
-            <div className="mt-4 border-t border-black pt-2">
-              <LedgerRow amount={saleCash} label="Sale Cash" />
-              <LedgerRow amount={difference} label="Difference" />
-              <LedgerRow amount={cashInHand} label="" bold />
-            </div>
           </div>
         </div>
       </div>
