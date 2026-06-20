@@ -851,9 +851,10 @@ export default function DailySalesReport() {
       <Dialog open={wizard === 'dip'} onOpenChange={(o) => !o && setWizard('idle')}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
+            <StepBar current={3} />
             <DialogTitle>Did you take Dip today?</DialogTitle>
             <DialogDescription>
-              Enter dip reading (cm) for each tank, or skip to exclude dip from this report.
+              Enter dip reading (cm) for each tank, or skip.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
