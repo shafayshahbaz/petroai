@@ -943,9 +943,12 @@ export default function Ledger() {
       {/* Ledger Table */}
       <div className="ledger-print-table">
         {/* Print Header - only visible in print */}
-        <div className="hidden print:block mb-4">
-          <h2 className="text-xl font-bold text-center">{selectedAccountName}</h2>
-          <p className="text-center text-sm text-muted-foreground">
+        <div className="hidden print:block mb-4 text-center">
+          {businessProfile.companyName && (
+            <h1 className="text-2xl font-bold">{businessProfile.companyName}</h1>
+          )}
+          <h2 className="text-xl font-semibold mt-1">{selectedAccountName}</h2>
+          <p className="text-sm text-muted-foreground">
             Ledger Statement • {format(dateRange.from, 'dd MMM yyyy')} to {format(dateRange.to, 'dd MMM yyyy')}
           </p>
         </div>
