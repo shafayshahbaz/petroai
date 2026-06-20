@@ -346,6 +346,30 @@ export function buildPrintableHtml(data: SalesReportData): string {
     </tbody>
   </table>
 
+  ${
+    data.dipReadings && data.dipReadings.length > 0
+      ? `<h2>Tank Dip Readings</h2>
+  <table>
+    <thead><tr><th>Tank</th><th>Fuel</th><th class="r">Dip (cm)</th><th class="r">Dip Liters</th><th class="r">System Liters</th><th class="r">Variance</th></tr></thead>
+    <tbody>
+      ${data.dipReadings
+        .map(
+          (d) => `<tr>
+        <td>${escapeHtml(d.tank_name)}</td>
+        <td>${escapeHtml(d.fuel_type)}</td>
+        <td class="r">${d.dip_reading}</td>
+        <td class="r">${d.dip_liters != null ? fmtL(d.dip_liters) : '—'}</td>
+        <td class="r">${d.system_liters != null ? fmtL(d.system_liters) : '—'}</td>
+        <td class="r">${d.variance != null ? fmtL(d.variance) : '—'}</td>
+      </tr>`
+        )
+        .join('')}
+    </tbody>
+  </table>`
+      : ''
+  }
+
+
   <div class="meta">Generated on ${format(new Date(), 'dd MMM yyyy, HH:mm')}</div>
   <script>setTimeout(function(){ try { window.print(); } catch(e) {} }, 300);</script>
 </body></html>`;
