@@ -71,19 +71,42 @@ function aggregate(data: SalesReportData): ProductAgg[] {
     }
   > = {};
 
+  // Seed every registered nozzle so zero-sale nozzles appear in the report.
+  if (data.allNozzles) {
+    for (const n of data.allNozzles) {
+      const p = n.fuel_type || 'OTHER';
+      if (!map[p]) map[p] = { nozzles: {}, weightedRateNum: 0, litersTotal: 0 };
+      const key = n.label || 'N';
+      if (!map[p].nozzles[key]) {
+        map[p].nozzles[key] = {
+          label: key,
+          opening: n.last_closing,
+          closing: n.last_closing,
+          sales: 0,
+        };
+      }
+    }
+  }
+
   for (const e of data.entries) {
     const p = e.product || 'OTHER';
     if (!map[p]) map[p] = { nozzles: {}, weightedRateNum: 0, litersTotal: 0 };
     const key = e.nozzle_label || 'N';
-    if (!map[p].nozzles[key]) {
-      map[p].nozzles[key] = { label: key, opening: 0, closing: 0, sales: 0 };
+    const existed = map[p].nozzles[key];
+    if (!existed || existed.sales === 0) {
+      // First real entry for this nozzle: replace the zero-seed.
+      map[p].nozzles[key] = {
+        label: key,
+        opening: Number(e.opening_reading),
+        closing: Number(e.closing_reading),
+        sales: Math.round((Number(e.closing_reading) - Number(e.opening_reading)) * 100) / 100,
+      };
+    } else {
+      const n = existed;
+      n.opening = Math.min(n.opening, Number(e.opening_reading));
+      n.closing = Math.max(n.closing, Number(e.closing_reading));
+      n.sales = Math.round((n.closing - n.opening) * 100) / 100;
     }
-    const n = map[p].nozzles[key];
-    // For multi-shift on same nozzle: keep earliest opening and latest closing
-    // Approximate: smallest opening, largest closing
-    n.opening = n.opening === 0 ? Number(e.opening_reading) : Math.min(n.opening, Number(e.opening_reading));
-    n.closing = Math.max(n.closing, Number(e.closing_reading));
-    n.sales = Math.round((n.closing - n.opening) * 100) / 100;
     map[p].weightedRateNum += Number(e.rate) * Number(e.liters_sold);
     map[p].litersTotal += Number(e.liters_sold);
   }
@@ -95,7 +118,7 @@ function aggregate(data: SalesReportData): ProductAgg[] {
   });
 
   return products.map((p) => {
-    const nozzles = Object.values(map[p].nozzles);
+    const nozzles = Object.values(map[p].nozzles).sort((a, b) => a.label.localeCompare(b.label));
     const totalSales = Math.round(nozzles.reduce((s, n) => s + n.sales, 0) * 1000) / 1000;
     const testing = Number(data.testingByProduct?.[p] || 0);
     const netSales = Math.round((totalSales - testing) * 1000) / 1000;
