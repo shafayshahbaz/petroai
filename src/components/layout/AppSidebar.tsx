@@ -7,55 +7,22 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from './LanguageToggle';
-const getNavItems = (t: (key: string) => string) => [{
-  to: '/',
-  icon: LayoutDashboard,
-  label: t('dashboard')
-}, {
-  to: '/daily-entry',
-  icon: FileText,
-  label: t('dailyEntry')
-}, {
-  to: '/person-entry',
-  icon: UserCheck,
-  label: t('personEntry')
-}, {
-  to: '/purchase',
-  icon: Truck,
-  label: t('purchase')
-}, {
-  to: '/stock',
-  icon: Database,
-  label: t('stock')
-}, {
-  to: '/daily-sales-report',
-  icon: ClipboardList,
-  label: t('dailySalesReport')
-}, {
-  to: '/dip',
-  icon: Droplet,
-  label: t('dip')
-}, {
-  to: '/ledger',
-  icon: BookOpen,
-  label: t('ledger')
-}, {
-  to: '/debtors',
-  icon: Users,
-  label: t('debtors')
-}, {
-  to: '/bank',
-  icon: Landmark,
-  label: t('bank')
-}, {
-  to: '/settings',
-  icon: Settings,
-  label: t('settings')
-}, {
-  to: '/how-to-use',
-  icon: PlayCircle,
-  label: t('howToUse')
-}];
+const getNavItems = (t: (key: string) => string) => [
+  // === Primary (top) ===
+  { to: '/', icon: LayoutDashboard, label: t('dashboard') },
+  { to: '/person-entry', icon: UserCheck, label: t('personEntry') },
+  { to: '/daily-sales-report', icon: ClipboardList, label: t('dailySalesReport') },
+  { to: '/debtors', icon: Users, label: t('debtors') },
+  { to: '/bank', icon: Landmark, label: t('bank') },
+  { to: '/ledger', icon: BookOpen, label: t('ledger') },
+  // === Secondary (bottom) ===
+  { to: '/daily-entry', icon: FileText, label: t('dailyEntry'), secondary: true },
+  { to: '/purchase', icon: Truck, label: t('purchase'), secondary: true },
+  { to: '/stock', icon: Database, label: t('stock'), secondary: true },
+  { to: '/dip', icon: Droplet, label: t('dip'), secondary: true },
+  { to: '/settings', icon: Settings, label: t('settings'), secondary: true },
+  { to: '/how-to-use', icon: PlayCircle, label: t('howToUse'), secondary: true },
+];
 export function AppSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
