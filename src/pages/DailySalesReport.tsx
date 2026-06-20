@@ -79,6 +79,7 @@ export default function DailySalesReport() {
   const { toast } = useToast();
   const { clientId } = useAuth();
   const { businessProfile } = useSettingsStore();
+  const { nozzles: cloudNozzles } = useCloudData();
   const [entries, setEntries] = useState<PersonEntryRecord[]>([]);
   const [reports, setReports] = useState<DailySalesReportRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +87,14 @@ export default function DailySalesReport() {
   const [viewOpen, setViewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'create' | 'view'>('create');
+  const [editEntry, setEditEntry] = useState<PersonEntryRecord | null>(null);
+  const [editClosing, setEditClosing] = useState('');
+  const [editRate, setEditRate] = useState('');
+  const [editCash, setEditCash] = useState('');
+  const [editUpi, setEditUpi] = useState('');
+  const [allNozzlesWithLast, setAllNozzlesWithLast] = useState<
+    { label: string; fuel_type: string; last_closing: number }[]
+  >([]);
 
   // Wizard state
   const [wizard, setWizard] = useState<WizardStep>('idle');
